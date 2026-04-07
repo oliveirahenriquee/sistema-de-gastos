@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle Financeiro - Barbearia</title>
+    <style>
+        :root { --gold: #ffffff; --dark: #000000; --gray: #1a1a1a; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--dark); color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        
+        .container { background: var(--gray); padding: 25px; border-radius: 12px; border-top: 5px solid var(--gold); width: 100%; max-width: 450px; box-shadow: 0 10px 30px rgba(30, 14, 255, 0.2); margin-bottom: 30px; }
+        h2 { color: var(--gold); margin-top: 0; text-align: center; text-transform: uppercase; letter-spacing: 2px; }
+        
+        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #333; background: #000; color: white; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 15px; background: var(--gold); border: none; color: black; font-weight: bold; cursor: pointer; border-radius: 6px; font-size: 16px; transition: 0.3s; }
+        button:hover { background: #7cf10f; transform: scale(1.02); }
+
+        .links-navegacao { margin-bottom: 20px; }
+        .links-navegacao a { color: #3498db; text-decoration: none; font-weight: bold; margin: 0 15px; }
+
+        table { width: 100%; max-width: 800px; border-collapse: collapse; background: #111; border-radius: 8px; overflow: hidden; margin-top: 20px; }
+        th { background: #222; color: var(--gold); padding: 15px; text-align: left; }
+        td { padding: 12px; border-bottom: 1px solid #333; }
+        tr:hover { background: #1d1d24; }
+
+        .filtro-area { max-width: 800px; display: flex; gap: 20px; background: #111; padding: 15px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+        select { padding: 10px; background: #000; color: white; border-radius: 5px; width: 100%; }
+    </style>
+</head>
+<body>
+
+<!-- desativado por enquanto até eu implementar a dashboard
+ 
+    <div class="links-navegacao">
+        <a href="dashboard.html">📊 Ver Gráficos (Dashboard)</a>
+    </div>-->
+
+    <div class="container">
+        <h2>Novo Lançamento</h2>
+        <form id="formFinanceiro">
+            <input type="text" id="desc" placeholder="Descrição (Ex: Navalha)" required>
+            <input type="number" id="gastos" placeholder="Valor (R$)" step="0.01" required>
+            <input type="text" id="categoria" placeholder="Categoria (Ex: Suprimentos)" required>
+            <button type="submit">CADASTRAR NO SISTEMA</button>
+        </form>
+        
+        <div style="border-top: 2px solid #2ecc71; margin-top: 20px; padding-top: 10px; text-align: center;">
+            <h3 style="color: #2ecc71; margin: 5px 0;">Total no Filtro</h3>
+            <div id="valorTotal" style="font-size: 28px; font-weight: bold;">R$ 0,00</div>
+        </div>
+    </div>
+
+    <div class="filtro-area">
+        <div style="flex: 1;">
+            <label>Categoria:</label>
+            <select id="filtroCategoria" onchange="carregarDados()">
+                <option value="Todos">Todas</option>
+            </select>
+        </div>
+        <div style="flex: 1;">
+            <label>Mês:</label>
+            <input type="month" id="filtroMes" onchange="carregarDados()" style="margin: 0; padding: 8px;">
+        </div>
+    </div>
+
+    <h2>Histórico</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Descrição</th>
+                <th>Gasto</th>
+                <th>Categoria</th>
+                <th>Data</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="tabelaDados"></tbody>
+    </table>
+
+    <script>
+        // COLOQUE SEU IP AQUI:
+        const meuIP = "192.168.15.43"; 
+
+        // SALVAR
+        document.getElementById('formFinanceiro').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const dados = {
+                descricao: document.getElementById('desc').value,
+                valor_gastos: document.getElementById('gastos').value,
+                categoria: document.getElementById('categoria').value
+            };
+
+            const resp = await fetch(`http://${meuIP}:3000/salvar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados)
+            });
+
+            const res = await resp.json();
+            alert(res.mensagem);
+            e.target.reset();
+            carregarDados();
+        });
+
+        // CARREGAR LISTA
+        async function carregarDados() {
+            try {
+                const resp = await fetch(`http://${meuIP}:3000/listar`);
+                const dados = await resp.json();
+                
+                const corpoTabela = document.getElementById('tabelaDados');
+                const displayTotal = document.getElementById('valorTotal');
+                const selCategoria = document.getElementById('filtroCategoria');
+                
+                const filtroCat = selCategoria.value;
+                const filtroMes = document.getElementById('filtroMes').value;
+
+                corpoTabela.innerHTML = ""; 
+                let somaContador = 0;
+                let categoriasUnicas = new Set(["Todos"]);
+
+                dados.forEach(item => {
+                    categoriasUnicas.add(item.categoria);
+                    
+                    const dataObj = new Date(item.data_registro);
+                    const dataFormatada = dataObj.toLocaleDateString('pt-BR');
+                    const mesAnoItem = item.data_registro.substring(0, 7);
+
+                    const bateCategoria = (filtroCat === "Todos" || item.categoria === filtroCat);
+                    const bateMes = (!filtroMes || mesAnoItem === filtroMes);
+
+                    if (bateCategoria && bateMes) {
+                        somaContador += parseFloat(item.valor_gastos);
+                        corpoTabela.innerHTML += `
+                            <tr>
+                                <td>${item.descricao}</td>
+                                <td>R$ ${parseFloat(item.valor_gastos).toFixed(2)}</td>
+                                <td>${item.categoria}</td>
+                                <td>${dataFormatada}</td>
+                                <td>
+                                    <button onclick="excluirGasto(${item.id})" style="background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; width: auto;">X</button>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                });
+
+                displayTotal.innerText = `R$ ${somaContador.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                
+                // Atualizar select de categorias
+                const valorAntes = selCategoria.value;
+                selCategoria.innerHTML = "";
+                categoriasUnicas.forEach(cat => {
+                    const opt = document.createElement('option');
+                    opt.value = cat;
+                    opt.innerText = cat;
+                    if(cat === valorAntes) opt.selected = true;
+                    selCategoria.appendChild(opt);
+                });
+
+            } catch (err) {
+                console.error("Erro ao carregar lista:", err);
+            }
+        }
+
+        async function excluirGasto(id) {
+            if (confirm("Deseja apagar este registro?")) {
+                try {
+                    await fetch(`http://${meuIP}:3000/excluir/${id}`); 
+                    carregarDados();
+                } catch (err) {
+                    alert("Erro ao conectar com o servidor!");
+                }
+            }
+        }
+
+        carregarDados();
+    </script>
+</body>
+</html>
