@@ -1,40 +1,38 @@
 require('dotenv').config();
-
 const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// CONEXÃO COM O BANCO (Usa a porta do Aiven)
+// SERVIR ARQUIVOS ESTÁTICOS (Isso faz o HTML aparecer no link)
+app.use(express.static(path.join(__dirname)));
+
 const db = mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASS,
     database: process.env.DB_NAME,
-    port: process.env.DB_PORT, // <--- AQUI VAI O 28788 (DB_PORT)
+    port: process.env.DB_PORT,
     ssl: { rejectUnauthorized: false }
-});
-
-// ... resto do código ...
-
-// INICIALIZAÇÃO DO SERVIDOR (Usa a porta do site)
-const PORT = process.env.PORT || 3000; // <--- AQUI VAI O 3000 (PORT)
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
 });
 
 db.connect(err => {
     if (err) {
-        console.error('Erro ao conectar:', err.message);
+        console.error('Erro ao conectar ao MySQL:', err.message);
         return;
     }
-    console.log('Motor ligado! Conectado ao MySQL.');
+    console.log('Motor ligado! Conectado ao MySQL no Aiven.');
 });
 
-// ROTAS
+// Rota principal para abrir o site
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 app.post('/salvar', (req, res) => {
     const { descricao, valor_gastos, categoria } = req.body; 
     const sql = "INSERT INTO controle (descricao, valor_gastos, categoria) VALUES (?, ?, ?)";
@@ -52,14 +50,6 @@ app.get('/listar', (req, res) => {
     });
 });
 
-app.get('/dados-dashboard', (req, res) => {
-    const sql = "SELECT categoria, SUM(valor_gastos) as total FROM controle GROUP BY categoria";
-    db.query(sql, (err, results) => {
-        if (err) return res.status(500).json(err);
-        res.json(results);
-    });
-});
-
 app.get('/excluir/:id', (req, res) => {
     const { id } = req.params;
     const sql = "DELETE FROM controle WHERE id = ?";
@@ -69,7 +59,7 @@ app.get('/excluir/:id', (req, res) => {
     });
 });
 
-// IMPORTANTE: '0.0.0.0' permite que o tablet acesse o PC
-app.listen(3000, '0.0.0.0', () => {
-    console.log('Servidor ACESSÍVEL NA REDE! Use o IP do seu PC na porta 3000');
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
 });

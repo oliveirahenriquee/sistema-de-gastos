@@ -29,12 +29,6 @@
 </head>
 <body>
 
-<!-- desativado por enquanto até eu implementar a dashboard
- 
-    <div class="links-navegacao">
-        <a href="dashboard.html">📊 Ver Gráficos (Dashboard)</a>
-    </div>-->
-
     <div class="container">
         <h2>Novo Lançamento</h2>
         <form id="formFinanceiro">
@@ -78,8 +72,9 @@
     </table>
 
     <script>
-        // COLOQUE SEU IP AQUI:
-        const meuIP = "192.168.15.43"; 
+        // REMOVEMOS O IP FIXO E USAMOS APENAS O CAMINHO RELATIVO
+        // Isso faz com que o site funcione em qualquer lugar (PC, Tablet ou Celular)
+        const URL_API = ""; 
 
         // SALVAR
         document.getElementById('formFinanceiro').addEventListener('submit', async (e) => {
@@ -90,7 +85,7 @@
                 categoria: document.getElementById('categoria').value
             };
 
-            const resp = await fetch(`http://${meuIP}:3000/salvar`, {
+            const resp = await fetch(`${URL_API}/salvar`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(dados)
@@ -105,7 +100,7 @@
         // CARREGAR LISTA
         async function carregarDados() {
             try {
-                const resp = await fetch(`http://${meuIP}:3000/listar`);
+                const resp = await fetch(`${URL_API}/listar`);
                 const dados = await resp.json();
                 
                 const corpoTabela = document.getElementById('tabelaDados');
@@ -147,7 +142,7 @@
 
                 displayTotal.innerText = `R$ ${somaContador.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
                 
-                // Atualizar select de categorias
+                // Atualizar select de categorias preservando a seleção
                 const valorAntes = selCategoria.value;
                 selCategoria.innerHTML = "";
                 categoriasUnicas.forEach(cat => {
@@ -166,7 +161,7 @@
         async function excluirGasto(id) {
             if (confirm("Deseja apagar este registro?")) {
                 try {
-                    await fetch(`http://${meuIP}:3000/excluir/${id}`); 
+                    await fetch(`${URL_API}/excluir/${id}`); 
                     carregarDados();
                 } catch (err) {
                     alert("Erro ao conectar com o servidor!");
