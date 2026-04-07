@@ -8,13 +8,22 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// CONEXÃO COM O BANCO (Usa a porta do Aiven)
 const db = mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASS,
     database: process.env.DB_NAME,
-    port: process.env.DB_PORT, // Adicione esta linha!
-    ssl: { rejectUnauthorized: false } // Adicione esta linha para o Aiven aceitar
+    port: process.env.DB_PORT, // <--- AQUI VAI O 28788 (DB_PORT)
+    ssl: { rejectUnauthorized: false }
+});
+
+// ... resto do código ...
+
+// INICIALIZAÇÃO DO SERVIDOR (Usa a porta do site)
+const PORT = process.env.PORT || 3000; // <--- AQUI VAI O 3000 (PORT)
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
 });
 
 db.connect(err => {
