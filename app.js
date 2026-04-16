@@ -8,7 +8,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// SERVIR ARQUIVOS ESTÁTICOS (Isso faz o HTML aparecer no link)
 app.use(express.static(path.join(__dirname)));
 
 const db = mysql.createConnection({
@@ -28,7 +27,6 @@ db.connect(err => {
     console.log('Motor ligado! Conectado ao MySQL no Aiven.');
 });
 
-// Rota principal para abrir o site
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
