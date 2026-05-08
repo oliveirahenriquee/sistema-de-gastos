@@ -21,10 +21,28 @@ const db = mysql.createConnection({
 
 db.connect(err => {
     if (err) {
-    console.error(err); // Isso vai imprimir o erro real no Log do Render
-    return res.status(500).json(err); 
-}
+        console.error('Erro ao conectar ao MySQL:', err.message);
+        return;
+    }
     console.log('Motor ligado! Conectado ao MySQL no Aiven.');
+
+    // COMANDO PARA CRIAR A TABELA AUTOMATICAMENTE
+    const sqlCreate = `
+        CREATE TABLE IF NOT EXISTS controle (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            descricao VARCHAR(255) NOT NULL,
+            valor_gastos DECIMAL(10, 2) NOT NULL,
+            categoria VARCHAR(100) NOT NULL,
+            data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );`;
+
+    db.query(sqlCreate, (err) => {
+        if (err) {
+            console.error('Erro ao criar tabela:', err.message);
+        } else {
+            console.log('Tabela "controle" verificada/criada com sucesso!');
+        }
+    });
 });
 
 app.get('/', (req, res) => {
