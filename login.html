@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Controle Financeiro</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #000; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-card { background: #1a1a1a; padding: 40px; border-radius: 15px; border-top: 5px solid #2ecc71; width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h2 { text-align: center; color: #2ecc71; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #333; background: #080808; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #2ecc71; border: none; color: black; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 10px; }
+        .toggle { text-align: center; margin-top: 20px; font-size: 14px; color: #3498db; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2 id="titulo">Entrar</h2>
+        <form id="formAuth">
+            <input type="email" id="email" placeholder="Seu E-mail" required>
+            <input type="password" id="senha" placeholder="Sua Senha" required>
+            <button type="submit" id="btnAcao">ACESSAR</button>
+        </form>
+        <p class="toggle" onclick="alternarModo()" id="btnToggle">Não tem conta? Cadastre-se</p>
+    </div>
+
+    <script>
+        let modoLogin = true;
+
+        async function autenticar(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const senha = document.getElementById('senha').value;
+            const rota = modoLogin ? '/login' : '/registrar';
+
+            try {
+                const resp = await fetch(rota, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, senha })
+                });
+
+                const dados = await resp.json();
+
+                if (resp.ok) {
+                    if (modoLogin) {
+                        localStorage.setItem('token', dados.token); // Salva o crachá
+                        window.location.href = 'index.html'; // Entra no sistema
+                    } else {
+                        alert("Usuário criado! Agora faça o login.");
+                        alternarModo();
+                    }
+                } else {
+                    alert(dados.error || "Erro na autenticação");
+                }
+            } catch (err) {
+                alert("Erro ao conectar com o servidor.");
+            }
+        }
+
+        function alternarModo() {
+            modoLogin = !modoLogin;
+            document.getElementById('titulo').innerText = modoLogin ? 'Entrar' : 'Criar Conta';
+            document.getElementById('btnAcao').innerText = modoLogin ? 'ACESSAR' : 'CADASTRAR';
+            document.getElementById('btnToggle').innerText = modoLogin ? 'Não tem conta? Cadastre-se' : 'Já tenho conta, entrar';
+        }
+
+        document.getElementById('formAuth').addEventListener('submit', autenticar);
+    </script>
+</body>
+</html>

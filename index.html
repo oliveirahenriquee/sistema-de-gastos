@@ -3,43 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
     <title>Controle Financeiro</title>
-        <style>
-            :root { --gold: #ffffff; --dark: #000000; --gray: #1a1a1a; }
-            body { font-family: 'Segoe UI', sans-serif; background: var(--dark); color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-            
-            .container { background: var(--gray); padding: 25px; border-radius: 12px; border-top: 5px solid var(--gold); width: 100%; max-width: 450px; box-shadow: 0 10px 30px rgba(30, 14, 255, 0.2); margin-bottom: 30px; }
-            h2 { color: var(--gold); margin-top: 0; text-align: center; text-transform: uppercase; letter-spacing: 2px; }
-            
-            input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #333; background: #000; color: white; box-sizing: border-box; font-size: 16px; }
-            button { width: 100%; padding: 15px; background: var(--gold); border: none; color: black; font-weight: bold; cursor: pointer; border-radius: 6px; font-size: 16px; transition: 0.3s; }
-            button:hover { background: #7cf10f; transform: scale(1.02); }
-
-            .links-navegacao { margin-bottom: 20px; }
-            .links-navegacao a { color: #3498db; text-decoration: none; font-weight: bold; margin: 0 15px; }
-
-            table { width: 100%; max-width: 800px; border-collapse: collapse; background: #111; border-radius: 8px; overflow: hidden; margin-top: 20px; }
-            th { background: #222; color: var(--gold); padding: 15px; text-align: left; }
-            td { padding: 12px; border-bottom: 1px solid #333; }
-            tr:hover { background: #1d1d24; }
-
-            .filtro-area { max-width: 800px; display: flex; gap: 20px; background: #111; padding: 15px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
-            select { padding: 10px; background: #000; color: white; border-radius: 5px; width: 100%; }
-        </style>
 </head>
 <body>
 
+    <!-- Botão de Sair no topo -->
+    <div style="text-align: right; padding: 10px;">
+        <button onclick="fazerLogout()" style="background: #555; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">Sair do Sistema</button>
+    </div>
+
     <div class="container">
         <h2>Novo Lançamento</h2>
-            <form id="formFinanceiro">
-                <input type="text" id="desc" placeholder="Descrição (Ex: Conta de luz, Mercado, Parcela etc)" required>
-                <input type="number" id="gastos" placeholder="Valor (R$)" step="0.01" required>
-                <input type="text" id="categoria" placeholder="Categoria (Ex: Custos fixos, Lazer, Reserva etc)" required>
-                <button type="submit">CADASTRAR NO SISTEMA</button>
-            </form>
+        <form id="formFinanceiro">
+            <input type="text" id="desc" placeholder="Descrição (Ex: Conta de luz, Mercado, Parcela etc)" required>
+            <input type="number" id="gastos" placeholder="Valor (R$)" step="0.01" required>
+            <input type="text" id="categoria" placeholder="Categoria (Ex: Custos fixos, Lazer, Reserva etc)" required>
+            <button type="submit">CADASTRAR NO SISTEMA</button>
+        </form>
         
-            <div style="border-top: 2px solid #2ecc71; margin-top: 20px; padding-top: 10px; text-align: center;">
-                <h3 style="color: #2ecc71; margin: 5px 0;">Total no Filtro</h3>
+        <div style="border-top: 2px solid #2ecc71; margin-top: 20px; padding-top: 10px; text-align: center;">
+            <h3 style="color: #2ecc71; margin: 5px 0;">Total no Filtro</h3>
             <div id="valorTotal" style="font-size: 28px; font-weight: bold;">R$ 0,00</div>
         </div>
     </div>
@@ -72,8 +56,21 @@
     </table>
 
     <script>
+        // 1. Verificação de Segurança e Token
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+        }
+
         const URL_API = ""; 
 
+        // Função para deslogar
+        function fazerLogout() {
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        }
+
+        // 2. Salvar Gasto (Com Token)
         document.getElementById('formFinanceiro').addEventListener('submit', async (e) => {
             e.preventDefault();
             const dados = {
@@ -84,25 +81,40 @@
 
             const resp = await fetch(`${URL_API}/salvar`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // ADICIONADO TOKEN
+                },
                 body: JSON.stringify(dados)
             });
 
-            const res = await resp.json();
-            alert(res.mensagem);
-            e.target.reset();
-            carregarDados();
+            if (resp.ok) {
+                alert("Lançamento realizado!");
+                e.target.reset();
+                carregarDados();
+            } else {
+                alert("Erro ao salvar. Verifique se o login ainda é válido.");
+            }
         });
 
+        // 3. Listar Gastos (Com Token)
         async function carregarDados() {
             try {
-                const resp = await fetch(`${URL_API}/listar`);
+                const resp = await fetch(`${URL_API}/listar`, {
+                    headers: { 'Authorization': `Bearer ${token}` } // ADICIONADO TOKEN
+                });
+
+                // Se o servidor retornar 401 ou 403, o token expirou
+                if (resp.status === 401 || resp.status === 403) {
+                    fazerLogout();
+                    return;
+                }
+
                 const dados = await resp.json();
                 
-                // Se o servidor retornar erro, 'dados' será um objeto com erro, não um Array
                 if (!Array.isArray(dados)) {
                     console.error("O servidor não retornou uma lista:", dados);
-                    return; // Para aqui e evita o erro do forEach
+                    return;
                 }
                 
                 const corpoTabela = document.getElementById('tabelaDados');
@@ -119,10 +131,10 @@
                 dados.forEach(item => {
                     categoriasUnicas.add(item.categoria);
                     
-                    // Verificação de segurança para a data
                     const dataObj = item.data_registro ? new Date(item.data_registro) : new Date();
                     const dataFormatada = dataObj.toLocaleDateString('pt-BR');
-                    const mesAnoItem = item.data_registro ? item.data_registro.substring(0, 7) : "";
+                    
+                    const mesAnoItem = dataObj.toISOString().substring(0, 7);
 
                     const bateCategoria = (filtroCat === "Todos" || item.categoria === filtroCat);
                     const bateMes = (!filtroMes || mesAnoItem === filtroMes);
@@ -145,6 +157,7 @@
 
                 displayTotal.innerText = `R$ ${somaContador.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
                 
+                // Atualizar filtro de categorias sem perder seleção
                 const valorAntes = selCategoria.value;
                 selCategoria.innerHTML = "";
                 categoriasUnicas.forEach(cat => {
@@ -160,6 +173,7 @@
             }
         }
 
+        // Chamar carregar ao iniciar
         carregarDados();
     </script>
 </body>
