@@ -11,13 +11,32 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-const db = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT,
-    ssl: { rejectUnauthorized: false }
+// Cria a conexão usando a URI única que você colocou no .env
+// Remove parâmetros extras da URL
+// Forçamos o Node a quebrar a URL da Aiven e focar apenas no banco planilha_db
+// Configuração de conexão inteligente (Nuvem ou Local)
+const dbConfig = process.env.DATABASE_URL 
+    ? {
+        uri: process.env.DATABASE_URL.split('?')[0],
+        database: 'defaultdb',
+        ssl: { rejectUnauthorized: false }
+      }
+    : {
+        host: 'localhost',
+        user: 'root',
+        password: '32826039Xb$',
+        database: 'planilha_db',
+        port: 3306
+      };
+
+const db = mysql.createConnection(dbConfig);
+
+db.connect((err) => {
+    if (err) {
+        console.error('❌ Erro ao conectar ao banco de dados:', err.message);
+        return;
+    }
+    console.log(process.env.DATABASE_URL ? '🚀 Conectado ao banco da AIVEN na nuvem!' : '💻 Conectado ao banco LOCAL!');
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'chave_mestra_secreta';
@@ -37,12 +56,24 @@ const verificarToken = (req, res, next) => {
 };
 
 // Rota de Registro
+// Rota de Registro Melhorada
 app.post('/registrar', async (req, res) => {
     const { email, senha } = req.body;
     const senhaHash = await bcrypt.hash(senha, 10);
     const sql = "INSERT INTO usuarios (email, senha) VALUES (?, ?)";
-    db.query(sql, [email, senhaHash], (err) => {
-        if (err) return res.status(500).json({ error: "E-mail já cadastrado ou erro no servidor." });
+    
+    db.query(sql, [email, senhaHash], (err, result) => {
+        if (err) {
+            // ISSO AQUI VAI MOSTRAR O ERRO REAL NO SEU TERMINAL DO VS CODE:
+            console.error("❌ Erro ao inserir usuário no banco:", err);
+            
+            // Se o erro for de e-mail duplicado (Código 1062 no MySQL)
+            if (err.code === 'ER_DUP_ENTRY') {
+                return res.status(400).json({ error: "Este e-mail já está cadastrado!" });
+            }
+            
+            return res.status(500).json({ error: "Erro interno no servidor de banco de dados." });
+        }
         res.json({ mensagem: "Usuário criado com sucesso!" });
     });
 });
