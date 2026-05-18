@@ -79,7 +79,14 @@ client.on('message_create', async (msg) => {
     }
 });
 
-client.initialize();
+// O robô SÓ VAI LIGAR se o banco for LOCAL. 
+// Na nuvem (Render), ele vai ignorar o WhatsApp e manter apenas o site ativo!
+if (!process.env.DATABASE_URL) {
+    console.log("💻 Ambiente Local detectado: Inicializando o Bot do WhatsApp...");
+    client.initialize();
+} else {
+    console.log("🚀 Ambiente de Produção (Render) detectado: O Bot do WhatsApp ficará desligado na nuvem.");
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'chave_mestra_secreta';
 
