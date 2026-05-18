@@ -9,7 +9,6 @@
 </head>
 <body>
 
-    <!-- Botão de Sair no topo -->
     <div style="text-align: right; padding: 10px;">
         <button onclick="fazerLogout()" style="background: #555; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">Sair do Sistema</button>
     </div>
@@ -42,7 +41,7 @@
         </div>
     </div>
 
-    <div style="max-width: 400px; margin: auto;">
+    <div style="max-width: 350px; margin: 20px auto;">
        <canvas id="graficoGastos"></canvas>
    </div>
 
@@ -67,7 +66,7 @@
             window.location.href = 'login.html';
         }
 
-        const URL_API = ""; // Vazio significa que o front-end vai usar o mesmo endereço do servidor que o hospeda
+        const URL_API = ""; 
 
         // Função para deslogar
         function fazerLogout() {
@@ -88,7 +87,7 @@
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` // ADICIONADO TOKEN
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(dados)
             });
@@ -106,10 +105,9 @@
         async function carregarDados() {
             try {
                 const resp = await fetch(`${URL_API}/listar`, {
-                    headers: { 'Authorization': `Bearer ${token}` } // ADICIONADO TOKEN
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                // Se o servidor retornar 401 ou 403, o token expirou
                 if (resp.status === 401 || resp.status === 403) {
                     fazerLogout();
                     return;
@@ -132,13 +130,13 @@
                 corpoTabela.innerHTML = ""; 
                 let somaContador = 0;
                 let categoriasUnicas = new Set(["Todos"]);
+                let dadosFiltradosParaOGrafico = [];
 
                 dados.forEach(item => {
                     categoriasUnicas.add(item.categoria);
                     
                     const dataObj = item.data_registro ? new Date(item.data_registro) : new Date();
                     const dataFormatada = dataObj.toLocaleDateString('pt-BR');
-                    
                     const mesAnoItem = dataObj.toISOString().substring(0, 7);
 
                     const bateCategoria = (filtroCat === "Todos" || item.categoria === filtroCat);
@@ -146,6 +144,8 @@
 
                     if (bateCategoria && bateMes) {
                         somaContador += parseFloat(item.valor_gastos || 0);
+                        dadosFiltradosParaOGrafico.push(item); // Guarda para o gráfico
+
                         corpoTabela.innerHTML += `
                             <tr>
                                 <td>${item.descricao}</td>
@@ -160,34 +160,9 @@
                     }
                 });
 
-                async function excluirGasto(id) {
-                    if (!confirm("Tem certeza que deseja excluir este gasto?")) return;
-
-                    const token = localStorage.getItem('token');
-                    
-                    try {
-                        const response = await fetch(`/excluir/${id}`, {
-                            method: 'DELETE',
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-
-                        if (response.ok) {
-                            alert("Gasto excluído!");
-                            carregarDados(); // Recarrega a tabela atualizada
-                        } else {
-                            const erro = await response.json();
-                            alert(`Erro: ${erro.error}`);
-                        }
-                    } catch (error) {
-                        console.error("Erro na requisição:", error);
-                    }
-                }
-
                 displayTotal.innerText = `R$ ${somaContador.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
                 
-                // Atualizar filtro de categorias sem perder seleção
+                // Atualiza o Filtro de Categorias na tela
                 const valorAntes = selCategoria.value;
                 selCategoria.innerHTML = "";
                 categoriasUnicas.forEach(cat => {
@@ -198,12 +173,94 @@
                     selCategoria.appendChild(opt);
                 });
 
+                // ATUALIZA O GRÁFICO COM OS DADOS FILTRADOS
+                renderizarGrafico(dadosFiltradosParaOGrafico);
+
             } catch (err) {
                 console.error("Erro crítico ao carregar lista:", err);
             }
         }
 
-        // Chamar carregar ao iniciar
+        // 4. Função para Excluir Gasto (Agora visível e fora das outras funções)
+        async function excluirGasto(id) {
+            if (!confirm("Tem certeza que deseja excluir este gasto?")) return;
+            
+            try {
+                const response = await fetch(`${URL_API}/excluir/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    alert("Gasto excluído com sucesso!");
+                    carregarDados(); 
+                } else {
+                    const erro = await response.json();
+                    alert(`Erro: ${erro.error || "Não foi possível excluir."}`);
+                }
+            } catch (error) {
+                console.error("Erro na requisição de exclusão:", error);
+            }
+        }
+
+        // 5. Função que desenha o Gráfico de Pizza na Tela
+        // 5. Função que desenha o Gráfico de Pizza na Tela (Versão Corrigida)
+        function renderizarGrafico(listaDeGastos) {
+            const categorias = {};
+            
+            // Filtra e agrupa apenas gastos válidos
+            listaDeGastos.forEach(gasto => {
+                if (gasto.categoria && gasto.valor_gastos) {
+                    const catNome = gasto.categoria.trim();
+                    if (!categorias[catNome]) {
+                        categorias[catNome] = 0;
+                    }
+                    categorias[catNome] += parseFloat(gasto.valor_gastos);
+                }
+            });
+
+            const labels = Object.keys(categorias);
+            const valores = Object.values(categorias);
+
+            // Se não houver nenhum gasto no filtro, não desenha o gráfico para não dar erro
+            if (labels.length === 0) {
+                if (window.graficoFinanceiro) {
+                    window.graficoFinanceiro.destroy();
+                    window.graficoFinanceiro = null;
+                }
+                return;
+            }
+
+            const ctx = document.getElementById('graficoGastos').getContext('2d');
+            
+            // CORRIGIDO: Variável exclusiva para evitar conflito com "unidades"
+            if (window.graficoFinanceiro) {
+                window.graficoFinanceiro.destroy();
+            }
+
+            window.graficoFinanceiro = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: valores,
+                        backgroundColor: ['#ff6384', '#36a2eb', '#cc65fe', '#ffce56', '#4bc0c0', '#2ecc71', '#e67e22']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+        }
+
+        // Chamar ao iniciar a página
         carregarDados();
     </script>
 </body>
