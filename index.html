@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <title>Controle Financeiro</title>
 </head>
 <body>
@@ -40,6 +41,10 @@
             <input type="month" id="filtroMes" onchange="carregarDados()" style="margin: 0; padding: 8px;">
         </div>
     </div>
+
+    <div style="max-width: 400px; margin: auto;">
+       <canvas id="graficoGastos"></canvas>
+   </div>
 
     <h2>Histórico</h2>
     <table>
@@ -154,6 +159,31 @@
                         `;
                     }
                 });
+
+                async function excluirGasto(id) {
+                    if (!confirm("Tem certeza que deseja excluir este gasto?")) return;
+
+                    const token = localStorage.getItem('token');
+                    
+                    try {
+                        const response = await fetch(`/excluir/${id}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+
+                        if (response.ok) {
+                            alert("Gasto excluído!");
+                            carregarDados(); // Recarrega a tabela atualizada
+                        } else {
+                            const erro = await response.json();
+                            alert(`Erro: ${erro.error}`);
+                        }
+                    } catch (error) {
+                        console.error("Erro na requisição:", error);
+                    }
+                }
 
                 displayTotal.innerText = `R$ ${somaContador.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
                 

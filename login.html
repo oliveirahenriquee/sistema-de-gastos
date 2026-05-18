@@ -3,24 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <title>Login - Controle Financeiro</title>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #000; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-card { background: #1a1a1a; padding: 40px; border-radius: 15px; border-top: 5px solid #2ecc71; width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h2 { text-align: center; color: #2ecc71; margin-bottom: 20px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #333; background: #080808; color: white; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #2ecc71; border: none; color: black; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 10px; }
-        .toggle { text-align: center; margin-top: 20px; font-size: 14px; color: #3498db; cursor: pointer; }
-    </style>
 </head>
 <body>
     <div class="login-card">
         <h2 id="titulo">Entrar</h2>
         <form id="formAuth">
-            <input type="email" id="email" placeholder="Seu E-mail" required>
-            <input type="password" id="senha" placeholder="Sua Senha" required>
+            <input type="email" id="email" placeholder="E-mail" required>
+            <input type="password" id="senha" placeholder="Senha" required>
             <button type="submit" id="btnAcao">ACESSAR</button>
+            <link rel="stylesheet" href="login.css">
         </form>
-        <p class="toggle" onclick="alternarModo()" id="btnToggle">Não tem conta? Cadastre-se</p>
+        <p class="toggle" onclick="alternarModo()" id="btnToggle">Não tem uma conta? Cadastre-se</p>
     </div>
 
     <script>
