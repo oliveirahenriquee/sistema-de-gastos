@@ -9,41 +9,50 @@
 </head>
 <body>
 
-    <div style="text-align: right; padding: 10px;">
-        <button onclick="fazerLogout()" style="background: #555; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">Sair do Sistema</button>
+    <div class="topbar">
+        <button class="logout-button" onclick="fazerLogout()">Sair do Sistema</button>
     </div>
 
     <div class="container">
         <h2>Novo Lançamento</h2>
-        <form id="formFinanceiro">
-            <input type="text" id="desc" placeholder="Descrição (Ex: Conta de luz, Mercado, Parcela etc)" required>
-            <input type="number" id="gastos" placeholder="Valor (R$)" step="0.01" required>
-            <input type="text" id="categoria" placeholder="Categoria (Ex: Custos fixos, Lazer, Reserva etc)" required>
+        <form id="formFinanceiro" novalidate>
+            <div class="form-field">
+                <input type="text" id="desc" placeholder="Descrição (Ex: Conta de luz, Mercado, Parcela etc)" required>
+                <span class="field-error" id="descError"></span>
+            </div>
+            <div class="form-field">
+                <input type="number" id="gastos" placeholder="Valor (R$)" step="0.01" required>
+                <span class="field-error" id="gastosError"></span>
+            </div>
+            <div class="form-field">
+                <input type="text" id="categoria" placeholder="Categoria (Ex: Custos fixos, Lazer, Reserva etc)" required>
+                <span class="field-error" id="categoriaError"></span>
+            </div>
             <button type="submit">CADASTRAR NO SISTEMA</button>
         </form>
         
-        <div style="border-top: 2px solid #2ecc71; margin-top: 20px; padding-top: 10px; text-align: center;">
-            <h3 style="color: #2ecc71; margin: 5px 0;">Total no Filtro</h3>
-            <div id="valorTotal" style="font-size: 28px; font-weight: bold;">R$ 0,00</div>
+        <div class="info-panel">
+            <h3>Total no Filtro</h3>
+            <div id="valorTotal">R$ 0,00</div>
         </div>
     </div>
 
     <div class="filtro-area">
-        <div style="flex: 1;">
-            <label>Categoria:</label>
+        <div class="filtro-grupo">
+            <label>Categoria</label>
             <select id="filtroCategoria" onchange="carregarDados()">
                 <option value="Todos">Todas</option>
             </select>
         </div>
-        <div style="flex: 1;">
-            <label>Mês:</label>
-            <input type="month" id="filtroMes" onchange="carregarDados()" style="margin: 0; padding: 8px;">
+        <div class="filtro-grupo">
+            <label>Mês</label>
+            <input type="month" id="filtroMes" onchange="carregarDados()">
         </div>
     </div>
 
-    <div style="max-width: 350px; margin: 20px auto;">
+    <div class="chart-card">
        <canvas id="graficoGastos"></canvas>
-   </div>
+    </div>
 
     <h2>Histórico</h2>
     <table>
@@ -66,7 +75,7 @@
             window.location.href = 'login.html';
         }
 
-        const URL_API = ""; 
+        const URL_API = window.location.origin;
 
         // Função para deslogar
         function fazerLogout() {
@@ -74,18 +83,68 @@
             window.location.href = 'login.html';
         }
 
-        // 2. Salvar Gasto (Com Token)
-        document.getElementById('formFinanceiro').addEventListener('submit', async (e) => {
+        const formFinanceiro = document.getElementById('formFinanceiro');
+        const camposFinanceiro = [
+            { id: 'desc', nome: 'Descrição' },
+            { id: 'gastos', nome: 'Valor', tipo: 'number' },
+            { id: 'categoria', nome: 'Categoria' }
+        ];
+
+        function limparErrosFinanceiro() {
+            camposFinanceiro.forEach(campo => {
+                const input = document.getElementById(campo.id);
+                const erro = document.getElementById(`${campo.id}Error`);
+                input.classList.remove('input-error', 'input-valid');
+                if (erro) erro.innerText = '';
+            });
+        }
+
+        function mostrarErroFinanceiro(id, mensagem) {
+            const input = document.getElementById(id);
+            const erro = document.getElementById(`${id}Error`);
+            input.classList.add('input-error');
+            input.classList.remove('input-valid');
+            if (erro) erro.innerText = mensagem;
+        }
+
+        function validarFormularioFinanceiro() {
+            limparErrosFinanceiro();
+            let valido = true;
+
+            camposFinanceiro.forEach(campo => {
+                const input = document.getElementById(campo.id);
+                const valor = input.value.trim();
+
+                if (!valor) {
+                    mostrarErroFinanceiro(campo.id, `${campo.nome} é obrigatório.`);
+                    valido = false;
+                    return;
+                }
+
+                if (campo.tipo === 'number' && (isNaN(Number(valor)) || Number(valor) <= 0)) {
+                    mostrarErroFinanceiro(campo.id, `Digite um ${campo.nome.toLowerCase()} válido.`);
+                    valido = false;
+                } else {
+                    input.classList.add('input-valid');
+                }
+            });
+
+            return valido;
+        }
+
+        formFinanceiro.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!validarFormularioFinanceiro()) return;
+
             const dados = {
-                descricao: document.getElementById('desc').value,
-                valor_gastos: document.getElementById('gastos').value,
-                categoria: document.getElementById('categoria').value
+                descricao: document.getElementById('desc').value.trim(),
+                valor_gastos: Number(document.getElementById('gastos').value),
+                categoria: document.getElementById('categoria').value.trim()
             };
 
             const resp = await fetch(`${URL_API}/salvar`, {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
@@ -95,6 +154,7 @@
             if (resp.ok) {
                 alert("Lançamento realizado!");
                 e.target.reset();
+                limparErrosFinanceiro();
                 carregarDados();
             } else {
                 alert("Erro ao salvar. Verifique se o login ainda é válido.");
@@ -206,7 +266,6 @@
         }
 
         // 5. Função que desenha o Gráfico de Pizza na Tela
-        // 5. Função que desenha o Gráfico de Pizza na Tela (Versão Corrigida)
         function renderizarGrafico(listaDeGastos) {
             const categorias = {};
             
@@ -241,21 +300,64 @@
             }
 
             window.graficoFinanceiro = new Chart(ctx, {
-                type: 'pie',
+                type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [{
+                        label: 'Gastos por categoria',
                         data: valores,
-                        backgroundColor: ['#3a86ff', '#00d2ff', '#4cc9f0', '#7209b7', '#f72585', '#4bc0c0'],
-                        borderColor: '#161f38', // Sem colchetes para aplicar em todas as fatias
-                        borderWidth: 3          // Número puro, sem colchetes
+                        backgroundColor: labels.map((_, index) => {
+                            const colors = ['#00d2ff', '#3a86ff', '#4cc9f0', '#7b2cbf', '#4895ef', '#58a6ff'];
+                            return colors[index % colors.length];
+                        }),
+                        borderColor: '#0a0f1d',
+                        borderWidth: 1,
+                        borderRadius: 16,
+                        maxBarThickness: 46
                     }]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 1100,
+                        easing: 'easeOutQuart'
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#cbd5e1'
+                            },
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#cbd5e1',
+                                callback: value => `R$ ${value}`
+                            },
+                            grid: {
+                                color: 'rgba(255,255,255,0.08)'
+                            }
+                        }
+                    },
                     plugins: {
                         legend: {
-                            position: 'top',
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(10,15,29,0.95)',
+                            borderColor: '#00d2ff',
+                            borderWidth: 1,
+                            titleColor: '#ffffff',
+                            bodyColor: '#cbd5e1',
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed.y ?? context.parsed;
+                                    return `R$ ${Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                                }
+                            }
                         }
                     }
                 }

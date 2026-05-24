@@ -9,85 +9,162 @@ const jwt = require('jsonwebtoken');
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Configuração de conexão inteligente (Nuvem ou Local)
-const dbConfig = process.env.DATABASE_URL 
+const ambienteLocal = String(process.env.AMBIENTE_LOCAL || '').toLowerCase() === 'true';
+
+function criarConfigFromUrl(dbUrl) {
+    const url = new URL(dbUrl);
+    const config = {
+        host: url.hostname,
+        user: url.username,
+        password: url.password,
+        database: url.pathname.replace(/^\//, ''),
+        port: url.port ? Number(url.port) : 3306
+    };
+
+    if (url.protocol === 'mysqls:' || url.searchParams.get('ssl') === 'true') {
+        config.ssl = { rejectUnauthorized: false };
+    }
+
+    return config;
+}
+
+const databasePadrao = process.env.DB_DATABASE || 'defaultdb';
+
+const dbConfig = ambienteLocal
     ? {
-        uri: process.env.DATABASE_URL.split('?')[0],
-        database: 'defaultdb',
-        ssl: { rejectUnauthorized: false }
+        host: process.env.DB_HOST || 'localhost',
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD || '32826039Xb$',
+        database: databasePadrao,
+        port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306
       }
-    : {
-        host: 'localhost',
-        user: 'root',
-        password: '32826039Xb$',
-        database: 'planilha_db',
-        port: 3306
-      };
+    : process.env.DATABASE_URL
+        ? criarConfigFromUrl(process.env.DATABASE_URL)
+        : {
+            host: process.env.DB_HOST || 'localhost',
+            user: process.env.DB_USER || 'root',
+            password: process.env.DB_PASSWORD || '32826039Xb$',
+            database: databasePadrao,
+            port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306
+          };
 
 const db = mysql.createConnection(dbConfig);
+
+console.log('🛠️ Banco selecionado:', {
+    ambienteLocal,
+    host: dbConfig.host,
+    database: dbConfig.database,
+    port: dbConfig.port
+});
 
 db.connect((err) => {
     if (err) {
         console.error('❌ Erro ao conectar ao banco de dados:', err.message);
         return;
     }
-    console.log(process.env.DATABASE_URL ? '🚀 Conectado ao banco da AIVEN na nuvem!' : '💻 Conectado ao banco LOCAL!');
+    console.log(ambienteLocal ? '💻 Conectado ao banco LOCAL!' : '🚀 Conectado ao banco da AIVEN na nuvem!');
 });
 
+// =================================================================
+// CONFIGURAÇÃO DO BOT DO WHATSAPP (Ordem corrigida)
+// =================================================================
+// =================================================================
+// CONFIGURAÇÃO DO BOT DO WHATSAPP (Ajuste de Escopo Global)
+// =================================================================
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const whatsappEnabled = String(process.env.WHATSAPP_ENABLED || 'true').toLowerCase() === 'true';
 
-// Inicializa o cliente do WhatsApp com autenticação local
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    }
-});
+// Declaramos a variável aqui fora para que todo o arquivo possa enxergá-la
+let client = null;
 
-client.on('qr', (qr) => {
-    console.log('🤖 [WhatsApp Bot] QR Code gerado! Escaneie abaixo com o seu celular:');
-    qrcode.generate(qr, { small: true });
-});
+if (whatsappEnabled) {
+    // Retiramos o 'const' daqui para reutilizar a variável global
+    client = new Client({
+        authStrategy: new LocalAuth(),
+        puppeteer: {
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        }
+    });
 
-client.on('ready', () => {
-    console.log('🤖 🚀 [WhatsApp Bot] Conectado e pronto para ouvir mensagens!');
-});
+    // 2. Configura os ouvintes de conexão (QR Code e Ready)
+    client.on('qr', (qr) => {
+        console.log('🤖 [WhatsApp Bot] QR Code gerado! Escaneie abaixo com o seu celular:');
+        qrcode.generate(qr, { small: true });
+    });
 
-client.on('message_create', async (msg) => {
-    const texto = msg.body.trim();
-    const partes = texto.split(' ');
+    client.on('ready', () => {
+        console.log('🤖 🚀 [WhatsApp Bot] Conectado e pronto para ouvir mensagens!');
+    });
 
-    if (partes.length >= 3 && !isNaN(partes[0].replace(',', '.'))) {
-        const valor = parseFloat(partes[0].replace(',', '.'));
-        const descricao = partes[1];
-        const categoria = partes[2];
-        const usuarioIdFixo = 1; 
+    // OUVINTE DE MENSAGENS COM INSPEÇÃO DE NÚMERO E REGISTRO POR NOME
+    client.on('message_create', async (msg) => {
+        const texto = msg.body.trim();
+        const partes = texto.split(' ');
 
-        const sql = "INSERT INTO controle (descricao, valor_gastos, categoria, usuario_id) VALUES (?, ?, ?, ?)";
-        
-        db.query(sql, [descricao, valor, categoria, usuarioIdFixo], (err, result) => {
-            if (err) {
-                console.error("❌ Erro do bot ao salvar no banco:", err);
-                msg.reply("❌ Desculpe, deu um erro interno ao tentar salvar o seu gasto.");
-                return;
-            }
-            msg.reply(`✅ *Gasto Registrado pelo Bot!* \n\n💰 *Valor:* R$ ${valor.toFixed(2)}\n📝 *Descrição:* ${descricao}\n🏷️ *Categoria:* ${categoria}`);
-        });
-    }
-});
+        // Se a mensagem começar com um número e tiver pelo menos 3 partes (ex: 25 Lanche Alimentacao)
+        if (partes.length >= 3 && !isNaN(partes[0].replace(',', '.'))) {
+            const valor = parseFloat(partes[0].replace(',', '.'));
+            const descricao = partes[1];
+            const categoria = partes[2];
 
-// O robô SÓ VAI LIGAR se o banco for LOCAL. 
-// Na nuvem (Render), ele vai ignorar o WhatsApp e manter apenas o site ativo!
-if (!process.env.DATABASE_URL) {
-    console.log("💻 Ambiente Local detectado: Inicializando o Bot do WhatsApp...");
+            // Captura o ID do chat e o número limpo que enviou a mensagem
+            const chatOrigem = msg.from;
+            const numeroTelefone = msg.from.split('@')[0];
+
+            // 🔍 O ESPIÃO: Mostra no terminal o número exato para você validar com o Workbench
+            console.log(`🤖 [WhatsApp Bot] Mensagem recebida! Texto: "${texto}" | Número detectado pelo Bot: ${numeroTelefone}`);
+
+            // Busca o ID, E-mail e o Nome do usuário dono do número de telefone
+            const sqlBuscarUsuario = "SELECT id, email, nome FROM usuarios WHERE telefone = ?";
+
+            db.query(sqlBuscarUsuario, [numeroTelefone], (err, results) => {
+                if (err) {
+                    console.error("❌ Erro ao buscar usuário pelo telefone:", err);
+                    client.sendMessage(chatOrigem, "❌ Erro interno ao processar sua identidade.");
+                    return;
+                }
+
+                // Se não encontrou o número cadastrado no banco de dados
+                if (results.length === 0) {
+                    console.log(`⚠️ [WhatsApp Bot] O número ${numeroTelefone} tentou registrar um gasto mas não está cadastrado no banco.`);
+                    client.sendMessage(chatOrigem, `⚠️ *Número não vinculado!* \n\nO número _${numeroTelefone}_ não está cadastrado no sistema. Ajuste o número na tabela 'usuarios' do Workbench para ficar exatamente igual a este.`);
+                    return;
+                }
+
+                const usuarioIdDinamico = results[0].id;
+                const usuarioEmail = results[0].email;
+                const usuarioNome = results[0].nome ? results[0].nome : "Usuário";
+
+                // Realiza o insert na tabela controle relacionando ao ID encontrado
+                const sqlInserirGasto = "INSERT INTO controle (descricao, valor_gastos, categoria, usuario_id) VALUES (?, ?, ?, ?)";
+
+                db.query(sqlInserirGasto, [descricao, valor, categoria, usuarioIdDinamico], (errInsert, resultInsert) => {
+                    if (errInsert) {
+                        console.error("❌ Erro do bot ao salvar gasto:", errInsert);
+                        client.sendMessage(chatOrigem, "❌ Desculpe, deu um erro ao tentar salvar o seu gasto.");
+                        return;
+                    }
+
+                    // Retorna a mensagem customizada com o nome do usuário
+                    client.sendMessage(chatOrigem, `Olá, *${usuarioNome}*! Seu gasto foi registrado com sucesso. 🎉\n\n👤 *Conta:* ${usuarioEmail}\n💰 *Valor:* R$ ${valor.toFixed(2)}\n📝 *Descrição:* ${descricao}\n🏷️ *Categoria:* ${categoria}`);
+                });
+            });
+        }
+    });
+
+    console.log("🤖 Inicializando o Bot do WhatsApp...");
     client.initialize();
 } else {
-    console.log("🚀 Ambiente de Produção (Render) detectado: O Bot do WhatsApp ficará desligado na nuvem.");
+    console.log('⚠️ WhatsApp bot desabilitado via WHATSAPP_ENABLED=false. O servidor HTTP seguirá funcionando normalmente.');
 }
 
+// =================================================================
+// ROTAS DA API HTTP
+// =================================================================
 const JWT_SECRET = process.env.JWT_SECRET || 'chave_mestra_secreta';
 
 const verificarToken = (req, res, next) => {
@@ -105,6 +182,8 @@ const verificarToken = (req, res, next) => {
 
 app.post('/registrar', async (req, res) => {
     const { email, senha } = req.body;
+    if (!email || !senha) return res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
+
     const senhaHash = await bcrypt.hash(senha, 10);
     const sql = "INSERT INTO usuarios (email, senha) VALUES (?, ?)";
     
@@ -122,9 +201,15 @@ app.post('/registrar', async (req, res) => {
 
 app.post('/login', (req, res) => {
     const { email, senha } = req.body;
+    if (!email || !senha) return res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
+
     const sql = "SELECT * FROM usuarios WHERE email = ?";
     db.query(sql, [email], async (err, results) => {
-        if (err || results.length === 0) return res.status(401).json({ error: "Usuário não encontrado." });
+        if (err) {
+            console.error("❌ Erro ao buscar usuário:", err);
+            return res.status(500).json({ error: "Erro interno no servidor." });
+        }
+        if (results.length === 0) return res.status(401).json({ error: "Usuário não encontrado." });
         
         const senhaCorreta = await bcrypt.compare(senha, results[0].senha);
         if (!senhaCorreta) return res.status(401).json({ error: "Senha incorreta." });
@@ -136,9 +221,16 @@ app.post('/login', (req, res) => {
 
 app.post('/salvar', verificarToken, (req, res) => {
     const { descricao, valor_gastos, categoria } = req.body;
+    if (!descricao || !categoria || !valor_gastos || isNaN(parseFloat(valor_gastos))) {
+        return res.status(400).json({ error: 'Dados de gasto inválidos.' });
+    }
+
     const sql = "INSERT INTO controle (descricao, valor_gastos, categoria, usuario_id) VALUES (?, ?, ?, ?)";
-    db.query(sql, [descricao, valor_gastos, categoria, req.usuarioId], (err) => {
-        if (err) return res.status(500).json(err);
+    db.query(sql, [descricao, Number(valor_gastos), categoria, req.usuarioId], (err) => {
+        if (err) {
+            console.error("❌ Erro ao salvar gasto:", err);
+            return res.status(500).json({ error: 'Erro interno ao salvar gasto.' });
+        }
         res.json({ mensagem: "Salvo com sucesso!" });
     });
 });
@@ -159,7 +251,7 @@ app.delete('/excluir/:id', verificarToken, (req, res) => {
     
     db.query(sql, [gastoId, usuarioId], (err, result) => {
         if (err) {
-            console.error("❌ Erro ao deletar gasto:", err);
+            console.error("❌ Erro ao delete gasto:", err);
             return res.status(500).json({ error: "Erro ao deletar do banco de dados." });
         }
         

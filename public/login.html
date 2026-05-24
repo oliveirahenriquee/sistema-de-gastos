@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Controle Financeiro</title>
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <div class="login-card">
+        <h2 id="titulo">Entrar</h2>
+        <form id="formAuth" novalidate>
+            <div class="form-field">
+                <input type="email" id="email" placeholder="E-mail" required>
+                <span class="field-error" id="emailError"></span>
+            </div>
+            <div class="form-field">
+                <input type="password" id="senha" placeholder="Senha" required>
+                <span class="field-error" id="senhaError"></span>
+            </div>
+            <button type="submit" id="btnAcao">ACESSAR</button>
+        </form>
+        <p class="toggle" onclick="alternarModo()" id="btnToggle">Não tem uma conta? Cadastre-se</p>
+    </div>
+
+    <script>
+
+        const URL_API = window.location.origin; // Base API usando a origem atual do front-end
+
+        let modoLogin = true;
+
+        const formAuth = document.getElementById('formAuth');
+        const camposAuth = [
+            { id: 'email', nome: 'E-mail', tipo: 'email' },
+            { id: 'senha', nome: 'Senha' }
+        ];
+
+        function limparErrosAuth() {
+            camposAuth.forEach(campo => {
+                const input = document.getElementById(campo.id);
+                const erro = document.getElementById(`${campo.id}Error`);
+                input.classList.remove('input-error', 'input-valid');
+                if (erro) erro.innerText = '';
+            });
+        }
+
+        function mostrarErroAuth(id, mensagem) {
+            const input = document.getElementById(id);
+            const erro = document.getElementById(`${id}Error`);
+            input.classList.add('input-error');
+            input.classList.remove('input-valid');
+            if (erro) erro.innerText = mensagem;
+        }
+
+        function validarFormularioAuth() {
+            limparErrosAuth();
+            let valido = true;
+
+            camposAuth.forEach(campo => {
+                const input = document.getElementById(campo.id);
+                const valor = input.value.trim();
+
+                if (!valor) {
+                    mostrarErroAuth(campo.id, `${campo.nome} é obrigatório.`);
+                    valido = false;
+                    return;
+                }
+
+                if (campo.tipo === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor)) {
+                    mostrarErroAuth(campo.id, 'Digite um e-mail válido.');
+                    valido = false;
+                } else {
+                    input.classList.add('input-valid');
+                }
+            });
+
+            return valido;
+        }
+
+        async function autenticar(e) {
+            e.preventDefault();
+            if (!validarFormularioAuth()) return;
+
+            const email = document.getElementById('email').value.trim();
+            const senha = document.getElementById('senha').value;
+            const rota = modoLogin ? '/login' : '/registrar';
+
+            try {
+                const resp = await fetch(rota, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, senha })
+                });
+
+                const dados = await resp.json();
+
+                if (resp.ok) {
+                    if (modoLogin) {
+                        localStorage.setItem('token', dados.token);
+                        window.location.href = 'index.html';
+                    } else {
+                        alert("Usuário criado! Agora faça o login.");
+                        alternarModo();
+                    }
+                } else {
+                    alert(dados.error || "Erro na autenticação");
+                }
+            } catch (err) {
+                alert("Erro ao conectar com o servidor.");
+            }
+        }
+
+        function alternarModo() {
+            modoLogin = !modoLogin;
+            document.getElementById('titulo').innerText = modoLogin ? 'Entrar' : 'Criar Conta';
+            document.getElementById('btnAcao').innerText = modoLogin ? 'ACESSAR' : 'CADASTRAR';
+            document.getElementById('btnToggle').innerText = modoLogin ? 'Não tem conta? Cadastre-se' : 'Já tenho conta, entrar';
+        }
+
+        document.getElementById('formAuth').addEventListener('submit', autenticar);
+    </script>
+</body>
+</html>
