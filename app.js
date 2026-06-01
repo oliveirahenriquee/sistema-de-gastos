@@ -5,72 +5,71 @@ const cors = require('cors');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit'); // NOVO
+const nodemailer = require('nodemailer');        // NOVO
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Configuração de conexão inteligente (Nuvem ou Local)
-const ambienteLocal = String(process.env.AMBIENTE_LOCAL || '').toLowerCase() === 'true';
+// =================================================================
+// 🔒 PROTEÇÃO CONTRA ATAQUES (RATE LIMITER)
+// =================================================================
+const limitadorAutenticacao = rateLimit({
+    windowMs: 15 * 60 * 1000, // Janela de 15 minutos
+    max: 5, // Limita cada IP a 5 requisições por janela
+    message: { error: 'Muitas tentativas feitas. Por favor, tente novamente em 15 minutos.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
-function criarConfigFromUrl(dbUrl) {
-    const url = new URL(dbUrl);
-    const config = {
-        host: url.hostname,
-        user: url.username,
-        password: url.password,
-        database: url.pathname.replace(/^\//, ''),
-        port: url.port ? Number(url.port) : 3306
-    };
+// Apply para rotas sensíveis de login e cadastro
+app.use('/login', limitadorAutenticacao);
+app.use('/registrar', limitadorAutenticacao);
 
-    if (url.protocol === 'mysqls:' || url.searchParams.get('ssl') === 'true') {
-        config.ssl = { rejectUnauthorized: false };
+// =================================================================
+// 📧 CONFIGURAÇÃO DO DISPARADOR DE E-MAILS (NODEMAILER)
+// =================================================================
+const transportadorEmail = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 587,
+    secure: false, // true para 465, false para outras portas
+    auth: {
+        user: process.env.EMAIL_USER, // Seu e-mail de envio cadastrado no .env
+        pass: process.env.EMAIL_PASS  // Sua senha de app configurada no .env
     }
+});
 
-    return config;
-}
+// =================================================================
+// CONEXÃO INTELIGENTE COM O BANCO DE DADOS
+// =================================================================
+const usarNuvem = process.env.DATABASE_URL ? true : false;
+let db;
 
-const databasePadrao = process.env.DB_DATABASE || 'defaultdb';
-
-const dbConfig = ambienteLocal
-    ? {
+if (usarNuvem) {
+    db = mysql.createConnection({
+        uri: process.env.DATABASE_URL.split('?')[0],
+        ssl: { rejectUnauthorized: false }
+    });
+} else {
+    db = mysql.createConnection({
         host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER || 'root',
         password: process.env.DB_PASSWORD || '32826039Xb$',
-        database: databasePadrao,
+        database: process.env.DB_DATABASE || 'planilha_db',
         port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306
-      }
-    : process.env.DATABASE_URL
-        ? criarConfigFromUrl(process.env.DATABASE_URL)
-        : {
-            host: process.env.DB_HOST || 'localhost',
-            user: process.env.DB_USER || 'root',
-            password: process.env.DB_PASSWORD || '32826039Xb$',
-            database: databasePadrao,
-            port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306
-          };
-
-const db = mysql.createConnection(dbConfig);
-
-console.log('🛠️ Banco selecionado:', {
-    ambienteLocal,
-    host: dbConfig.host,
-    database: dbConfig.database,
-    port: dbConfig.port
-});
+    });
+}
 
 db.connect((err) => {
     if (err) {
         console.error('❌ Erro ao conectar ao banco de dados:', err.message);
         return;
     }
-    console.log(ambienteLocal ? '💻 Conectado ao banco LOCAL!' : '🚀 Conectado ao banco da AIVEN na nuvem!');
+    console.log(usarNuvem ? '🚀 Conectado ao banco da AIVEN na nuvem!' : '💻 Conectado ao banco LOCAL!');
 });
 
-// =================================================================
-// CONFIGURAÇÃO DO BOT DO WHATSAPP (Ordem corrigida)
-// =================================================================
 // =================================================================
 // CONFIGURAÇÃO DO BOT DO WHATSAPP (Ajuste de Escopo Global)
 // =================================================================
@@ -78,11 +77,9 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const whatsappEnabled = String(process.env.WHATSAPP_ENABLED || 'true').toLowerCase() === 'true';
 
-// Declaramos a variável aqui fora para que todo o arquivo possa enxergá-la
 let client = null;
 
 if (whatsappEnabled) {
-    // Retiramos o 'const' daqui para reutilizar a variável global
     client = new Client({
         authStrategy: new LocalAuth(),
         puppeteer: {
@@ -90,7 +87,6 @@ if (whatsappEnabled) {
         }
     });
 
-    // 2. Configura os ouvintes de conexão (QR Code e Ready)
     client.on('qr', (qr) => {
         console.log('🤖 [WhatsApp Bot] QR Code gerado! Escaneie abaixo com o seu celular:');
         qrcode.generate(qr, { small: true });
@@ -100,25 +96,20 @@ if (whatsappEnabled) {
         console.log('🤖 🚀 [WhatsApp Bot] Conectado e pronto para ouvir mensagens!');
     });
 
-    // OUVINTE DE MENSAGENS COM INSPEÇÃO DE NÚMERO E REGISTRO POR NOME
     client.on('message_create', async (msg) => {
         const texto = msg.body.trim();
         const partes = texto.split(' ');
 
-        // Se a mensagem começar com um número e tiver pelo menos 3 partes (ex: 25 Lanche Alimentacao)
         if (partes.length >= 3 && !isNaN(partes[0].replace(',', '.'))) {
             const valor = parseFloat(partes[0].replace(',', '.'));
             const descricao = partes[1];
             const categoria = partes[2];
 
-            // Captura o ID do chat e o número limpo que enviou a mensagem
             const chatOrigem = msg.from;
             const numeroTelefone = msg.from.split('@')[0];
 
-            // 🔍 O ESPIÃO: Mostra no terminal o número exato para você validar com o Workbench
-            console.log(`🤖 [WhatsApp Bot] Mensagem recebida! Texto: "${texto}" | Número detectado pelo Bot: ${numeroTelefone}`);
+            console.log(`🤖 [WhatsApp Bot] Mensagem recebida! | Número detectado: ${numeroTelefone}`);
 
-            // Busca o ID, E-mail e o Nome do usuário dono do número de telefone
             const sqlBuscarUsuario = "SELECT id, email, nome FROM usuarios WHERE telefone = ?";
 
             db.query(sqlBuscarUsuario, [numeroTelefone], (err, results) => {
@@ -128,10 +119,8 @@ if (whatsappEnabled) {
                     return;
                 }
 
-                // Se não encontrou o número cadastrado no banco de dados
                 if (results.length === 0) {
-                    console.log(`⚠️ [WhatsApp Bot] O número ${numeroTelefone} tentou registrar um gasto mas não está cadastrado no banco.`);
-                    client.sendMessage(chatOrigem, `⚠️ *Número não vinculado!* \n\nO número _${numeroTelefone}_ não está cadastrado no sistema. Ajuste o número na tabela 'usuarios' do Workbench para ficar exatamente igual a este.`);
+                    client.sendMessage(chatOrigem, `⚠️ *Número não vinculado!* \n\nO número _${numeroTelefone}_ não está cadastrado no sistema.`);
                     return;
                 }
 
@@ -139,17 +128,13 @@ if (whatsappEnabled) {
                 const usuarioEmail = results[0].email;
                 const usuarioNome = results[0].nome ? results[0].nome : "Usuário";
 
-                // Realiza o insert na tabela controle relacionando ao ID encontrado
                 const sqlInserirGasto = "INSERT INTO controle (descricao, valor_gastos, categoria, usuario_id) VALUES (?, ?, ?, ?)";
 
-                db.query(sqlInserirGasto, [descricao, valor, categoria, usuarioIdDinamico], (errInsert, resultInsert) => {
+                db.query(sqlInserirGasto, [descricao, valor, categoria, usuarioIdDinamico], (errInsert) => {
                     if (errInsert) {
-                        console.error("❌ Erro do bot ao salvar gasto:", errInsert);
                         client.sendMessage(chatOrigem, "❌ Desculpe, deu um erro ao tentar salvar o seu gasto.");
                         return;
                     }
-
-                    // Retorna a mensagem customizada com o nome do usuário
                     client.sendMessage(chatOrigem, `Olá, *${usuarioNome}*! Seu gasto foi registrado com sucesso. 🎉\n\n👤 *Conta:* ${usuarioEmail}\n💰 *Valor:* R$ ${valor.toFixed(2)}\n📝 *Descrição:* ${descricao}\n🏷️ *Categoria:* ${categoria}`);
                 });
             });
@@ -159,7 +144,7 @@ if (whatsappEnabled) {
     console.log("🤖 Inicializando o Bot do WhatsApp...");
     client.initialize();
 } else {
-    console.log('⚠️ WhatsApp bot desabilitado via WHATSAPP_ENABLED=false. O servidor HTTP seguirá funcionando normalmente.');
+    console.log('⚠️ WhatsApp bot desabilitado via WHATSAPP_ENABLED=false.');
 }
 
 // =================================================================
@@ -180,6 +165,48 @@ const verificarToken = (req, res, next) => {
     });
 };
 
+// NOVO: ROTA PARA SOLICITAR RECUPERAÇÃO DE SENHA
+app.post('/esqueci-senha', (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'O e-mail é obrigatório.' });
+
+    const sql = "SELECT id, nome FROM usuarios WHERE email = ?";
+    db.query(sql, [email.trim()], async (err, results) => {
+        if (err) return res.status(500).json({ error: 'Erro interno no servidor.' });
+        
+        // Medida de Segurança (Timing Attack): Sempre responda com sucesso para o front-end
+        // para evitar que hackers fiquem testando quais e-mails existem ou não no seu banco.
+        if (results.length === 0) {
+            return res.json({ mensagem: "Um link de recuperação será enviado ao seu email! Não se esqueça de verificar a caixa de spam caso não encontre o email." });
+        }
+
+        const usuario = results[0];
+        // Gera um token temporário que expira em 1 hora para redefinir a senha
+        const tokenRecuperacao = jwt.sign({ id: usuario.id }, JWT_SECRET, { expiresIn: '1h' });
+
+        // Link apontando para a nova tela de redefinição que você criará no front
+        const linkRecuperacao = `${req.protocol}://${req.get('host')}/redefinir-senha.html?token=${tokenRecuperacao}`;
+
+        const opcoesEmail = {
+            from: `"Controle Financeiro 🪙" <${process.env.EMAIL_USER}>`,
+            to: email.trim(),
+            subject: 'Recuperação de Senha - Sistema Financeiro',
+            html: `<h3>Olá, ${usuario.nome || 'Usuário'}!</h3>
+                   <p>Você solicitou a redefinição de sua senha. Clique no link abaixo para criar uma nova senha:</p>
+                   <a href="${linkRecuperacao}" target="_blank" style="display:inline-block; background:#00d2ff; color:#0a0f1d; padding:10px 20px; text-decoration:none; border-radius:5px; font-weight:bold;">REDEFINIR MINHA SENHA</a>
+                   <p>Este link é válido por 1 hora. Se não foi você quem solicitou, ignore este e-mail.</p>`
+        };
+
+        transportadorEmail.sendMail(opcoesEmail, (errMail) => {
+            if (errMail) {
+                console.error("❌ Erro ao enviar e-mail:", errMail);
+                return res.status(500).json({ error: "Erro ao disparar e-mail de recuperação." });
+            }
+            res.json({ mensagem: "Se o e-mail existir no sistema, um link de recuperação será enviado!" });
+        });
+    });
+});
+
 app.post('/registrar', async (req, res) => {
     const { email, senha } = req.body;
     if (!email || !senha) return res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
@@ -187,12 +214,9 @@ app.post('/registrar', async (req, res) => {
     const senhaHash = await bcrypt.hash(senha, 10);
     const sql = "INSERT INTO usuarios (email, senha) VALUES (?, ?)";
     
-    db.query(sql, [email, senhaHash], (err, result) => {
+    db.query(sql, [email, senhaHash], (err) => {
         if (err) {
-            console.error("❌ Erro ao inserir usuário no banco:", err);
-            if (err.code === 'ER_DUP_ENTRY') {
-                return res.status(400).json({ error: "Este e-mail já está cadastrado!" });
-            }
+            if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: "Este e-mail já está cadastrado!" });
             return res.status(500).json({ error: "Erro interno no servidor de banco de dados." });
         }
         res.json({ mensagem: "Usuário criado com sucesso!" });
@@ -205,14 +229,11 @@ app.post('/login', (req, res) => {
 
     const sql = "SELECT * FROM usuarios WHERE email = ?";
     db.query(sql, [email], async (err, results) => {
-        if (err) {
-            console.error("❌ Erro ao buscar usuário:", err);
-            return res.status(500).json({ error: "Erro interno no servidor." });
-        }
-        if (results.length === 0) return res.status(401).json({ error: "Usuário não encontrado." });
+        if (err) return res.status(500).json({ error: "Erro interno no servidor." });
+        if (results.length === 0) return res.status(401).json({ error: "Usuário ou senha incorretos." });
         
         const senhaCorreta = await bcrypt.compare(senha, results[0].senha);
-        if (!senhaCorreta) return res.status(401).json({ error: "Senha incorreta." });
+        if (!senhaCorreta) return res.status(401).json({ error: "Usuário ou senha incorretos." });
 
         const token = jwt.sign({ id: results[0].id }, JWT_SECRET, { expiresIn: '24h' });
         res.json({ auth: true, token });
@@ -227,10 +248,7 @@ app.post('/salvar', verificarToken, (req, res) => {
 
     const sql = "INSERT INTO controle (descricao, valor_gastos, categoria, usuario_id) VALUES (?, ?, ?, ?)";
     db.query(sql, [descricao, Number(valor_gastos), categoria, req.usuarioId], (err) => {
-        if (err) {
-            console.error("❌ Erro ao salvar gasto:", err);
-            return res.status(500).json({ error: 'Erro interno ao salvar gasto.' });
-        }
+        if (err) return res.status(500).json({ error: 'Erro interno ao salvar gasto.' });
         res.json({ mensagem: "Salvo com sucesso!" });
     });
 });
@@ -246,21 +264,17 @@ app.get('/listar', verificarToken, (req, res) => {
 app.delete('/excluir/:id', verificarToken, (req, res) => {
     const gastoId = req.params.id;
     const usuarioId = req.usuarioId;
-
     const sql = "DELETE FROM controle WHERE id = ? AND usuario_id = ?";
     
     db.query(sql, [gastoId, usuarioId], (err, result) => {
-        if (err) {
-            console.error("❌ Erro ao delete gasto:", err);
-            return res.status(500).json({ error: "Erro ao deletar do banco de dados." });
-        }
-        
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: "Gasto não encontrado ou não pertence a você." });
-        }
-
+        if (err) return res.status(500).json({ error: "Erro ao deletar do banco de dados." });
+        if (result.affectedRows === 0) return res.status(404).json({ error: "Gasto não encontrado." });
         res.json({ mensagem: "Gasto excluído com sucesso!" });
     });
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('⚠️ Rejeição não tratada detectada:', reason);
 });
 
 const PORT = process.env.PORT || 3000;
