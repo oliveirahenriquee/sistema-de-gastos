@@ -96,9 +96,9 @@ const db = pool;
 
 console.log(usarNuvem ? '🚀 Pool de conexões ativado na AIVEN (Nuvem)!' : '💻 Pool de conexões ativado LOCALMENTE!');
 // =================================================================
-// CONFIGURAÇÃO DO BOT DO WHATSAPP (Versão Final Ultra-Estável)
+// CONFIGURAÇÃO DO BOT DO WHATSAPP (Versão Session Token - Antiloop)
 // =================================================================
-const { Client, LocalAuth } = require('whatsapp-web.js'); // Voltamos para LocalAuth
+const { Client, RemoteAuth } = require('whatsapp-web.js'); // Usaremos a inteligência de sessão
 const qrcode = require('qrcode-terminal');
 
 const whatsappEnabled = String(process.env.WHATSAPP_ENABLED || 'true').toLowerCase() === 'true';
@@ -106,10 +106,12 @@ const whatsappEnabled = String(process.env.WHATSAPP_ENABLED || 'true').toLowerCa
 let client = null;
 
 if (whatsappEnabled) {
+    // Se você já tiver a chave salva no Render, ele usa ela. Se não, ele pede o QR Code.
+    const sessionData = process.env.WHATSAPP_SESSION ? JSON.parse(process.env.WHATSAPP_SESSION) : null;
+
     client = new Client({
-        authStrategy: new LocalAuth({
-            dataPath: '/tmp/.wwebjs_auth' // 📁 Mudado para a pasta /tmp para estabilizar na nuvem
-        }),
+        // Se tiver o token salvo ele usa, senão inicializa zerado para te dar o QR Code
+        session: sessionData, 
         puppeteer: {
             headless: true,
             args: [
@@ -136,6 +138,13 @@ if (whatsappEnabled) {
         qrcode.generate(qr, { small: true });
     });
 
+    // 🔑 O PULO DO GATO: Quando você escanear, ele vai cuspir o Token no log. Copie ele!
+    client.on('authenticated', (session) => {
+        console.log('🔑 ====== COPIE O TEXTO ABAIXO (DEPOIS DOS DOIS PONTOS) EN RE COLOQUE NO RENDER ======');
+        console.log(JSON.stringify(session));
+        console.log('================================================================================');
+    });
+
     client.on('ready', () => {
         console.log('🤖 🚀 [WhatsApp Bot] Conectado e pronto para ouvir mensagens!');
     });
@@ -152,8 +161,6 @@ if (whatsappEnabled) {
             const categoria = partes[2]; 
 
             const chatOrigem = msg.from;
-            
-            // Captura limpa do número do WhatsApp, tratando inclusive contas @lid novas
             const numeroTelefone = msg.from.replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@lid', '').trim();
 
             console.log(`🤖 [WhatsApp Bot] Mensagem recebida! | Número limpo detectado: ${numeroTelefone}`);
