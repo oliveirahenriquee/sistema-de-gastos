@@ -141,7 +141,6 @@ if (whatsappEnabled) {
         console.log('🤖 🚀 [WhatsApp Bot] Conectado e pronto para ouvir mensagens!');
     });
 
-    // Escuta estritamente mensagens RECEBIDAS (ignora as enviadas pelo próprio bot)
     client.on('message', async (msg) => {
         if (msg.fromMe) return;
 
@@ -151,12 +150,12 @@ if (whatsappEnabled) {
         if (partes.length >= 3 && !isNaN(partes[0].replace(',', '.'))) {
             const valor = parseFloat(partes[0].replace(',', '.'));
             const descricao = partes[1];
-            const category = partes[2];
+            const categoria = partes[2]; // 💎 CORRIGIDO: de category para categoria
 
             const chatOrigem = msg.from;
             
-            // Trata a string para capturar apenas os números puros do WhatsApp
-            const numeroTelefone = msg.from.replace('@c.us', '').replace('@s.whatsapp.net', '').trim();
+            // Trata a string para capturar apenas os números puros do WhatsApp (remove tanto @c.us quanto @lid)
+            const numeroTelefone = msg.from.replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@lid', '').trim();
 
             console.log(`🤖 [WhatsApp Bot] Mensagem recebida! | Número limpo detectado: ${numeroTelefone}`);
 
@@ -170,7 +169,6 @@ if (whatsappEnabled) {
                 }
 
                 if (results.length === 0) {
-                    // Retorna o número limpo exato no chat para facilitar o seu vínculo no Workbench
                     client.sendMessage(chatOrigem, `⚠️ *Número não vinculado!* \n\nO número identificado no seu WhatsApp é: *${numeroTelefone}*.\n\nConfigure este número exato na sua conta pelo banco de dados.`);
                     return;
                 }
@@ -179,14 +177,16 @@ if (whatsappEnabled) {
                 const usuarioEmail = results[0].email;
                 const usuarioNome = results[0].nome ? results[0].nome : "Usuário";
 
-                const sqlInserirGasto = "INSERT INTO controle (descricao, valor_gastos, category, usuario_id) VALUES (?, ?, ?, ?)";
+                // 💎 CORRIGIDO: mudado de category para categoria na query SQL abaixo
+                const sqlInserirGasto = "INSERT INTO controle (descricao, valor_gastos, categoria, usuario_id) VALUES (?, ?, ?, ?)";
 
-                db.query(sqlInserirGasto, [descricao, valor, category, usuarioIdDinamico], (errInsert) => {
+                db.query(sqlInserirGasto, [descricao, valor, categoria, usuarioIdDinamico], (errInsert) => {
                     if (errInsert) {
+                        console.error("❌ Erro no INSERT do MySQL:", errInsert); // Imprime o erro real no log do Render para segurança
                         client.sendMessage(chatOrigem, "❌ Desculpe, deu um erro ao tentar salvar o seu gasto.");
                         return;
                     }
-                    client.sendMessage(chatOrigem, `Olá, *${usuarioNome}*! Seu gasto foi registrado com sucesso. 🎉\n\n👤 *Conta:* ${usuarioEmail}\n💰 *Valor:* R$ ${valor.toFixed(2)}\n📝 *Descrição:* ${descricao}\n🏷️ *Categoria:* ${category}`);
+                    client.sendMessage(chatOrigem, `Olá, *${usuarioNome}*! Seu gasto foi registrado com sucesso. 🎉\n\n👤 *Conta:* ${usuarioEmail}\n💰 *Valor:* R$ ${valor.toFixed(2)}\n📝 *Descrição:* ${descricao}\n🏷️ *Categoria:* ${categoria}`);
                 });
             });
         }
