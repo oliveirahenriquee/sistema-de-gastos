@@ -95,11 +95,10 @@ if (usarNuvem) {
 const db = pool; 
 
 console.log(usarNuvem ? '🚀 Pool de conexões ativado na AIVEN (Nuvem)!' : '💻 Pool de conexões ativado LOCALMENTE!');
-
 // =================================================================
-// CONFIGURAÇÃO DO BOT DO WHATSAPP (Blindado contra loops)
+// CONFIGURAÇÃO DO BOT DO WHATSAPP (Versão Ultra-Estável NoAuth)
 // =================================================================
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, NoAuth } = require('whatsapp-web.js'); // Mudamos de LocalAuth para NoAuth aqui
 const qrcode = require('qrcode-terminal');
 
 const whatsappEnabled = String(process.env.WHATSAPP_ENABLED || 'true').toLowerCase() === 'true';
@@ -108,9 +107,7 @@ let client = null;
 
 if (whatsappEnabled) {
     client = new Client({
-        authStrategy: new LocalAuth({
-            dataPath: './.wwebjs_auth' 
-        }),
+        authStrategy: new NoAuth(), // 🛡️ Sem salvar arquivos no disco do Render (Evita crash por arquivo corrompido)
         puppeteer: {
             headless: true,
             args: [
@@ -130,6 +127,11 @@ if (whatsappEnabled) {
                 '--js-flags="--max-old-space-size=150"' 
             ],
         }
+    });
+
+    client.on('qr', (qr) => {
+        console.log('🤖 [WhatsApp Bot] QR Code gerado! Escaneie abaixo com o seu celular:');
+        qrcode.generate(qr, { small: true });
     });
 
     client.on('qr', (qr) => {
