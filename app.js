@@ -103,6 +103,26 @@ console.log(usarNuvem ? '🚀 Pool de conexões ativado na AIVEN (Nuvem)!' : '�
 // CONFIGURAÇÃO DO BOT DO WHATSAPP (Ajuste de Escopo Global)
 // =================================================================
 const { Client, LocalAuth } = require('whatsapp-web.js');
+
+const client = new Client({
+    authStrategy: new LocalAuth({
+        dataPath: './.wwebjs_auth' // Isso cria uma pasta para salvar o seu login
+    }),
+    puppeteer: {
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu'
+        ],
+    }
+});
+
 const qrcode = require('qrcode-terminal');
 const whatsappEnabled = String(process.env.WHATSAPP_ENABLED || 'true').toLowerCase() === 'true';
 
