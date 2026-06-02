@@ -96,9 +96,9 @@ const db = pool;
 
 console.log(usarNuvem ? '🚀 Pool de conexões ativado na AIVEN (Nuvem)!' : '💻 Pool de conexões ativado LOCALMENTE!');
 // =================================================================
-// CONFIGURAÇÃO DO BOT DO WHATSAPP (Versão Ultra-Estável NoAuth)
+// CONFIGURAÇÃO DO BOT DO WHATSAPP (Versão Final Ultra-Estável)
 // =================================================================
-const { Client, NoAuth } = require('whatsapp-web.js'); // Mudamos de LocalAuth para NoAuth aqui
+const { Client, LocalAuth } = require('whatsapp-web.js'); // Voltamos para LocalAuth
 const qrcode = require('qrcode-terminal');
 
 const whatsappEnabled = String(process.env.WHATSAPP_ENABLED || 'true').toLowerCase() === 'true';
@@ -107,7 +107,9 @@ let client = null;
 
 if (whatsappEnabled) {
     client = new Client({
-        authStrategy: new NoAuth(), // 🛡️ Sem salvar arquivos no disco do Render (Evita crash por arquivo corrompido)
+        authStrategy: new LocalAuth({
+            dataPath: '/tmp/.wwebjs_auth' // 📁 Mudado para a pasta /tmp para estabilizar na nuvem
+        }),
         puppeteer: {
             headless: true,
             args: [
@@ -134,11 +136,6 @@ if (whatsappEnabled) {
         qrcode.generate(qr, { small: true });
     });
 
-    client.on('qr', (qr) => {
-        console.log('🤖 [WhatsApp Bot] QR Code gerado! Escaneie abaixo com o seu celular:');
-        qrcode.generate(qr, { small: true });
-    });
-
     client.on('ready', () => {
         console.log('🤖 🚀 [WhatsApp Bot] Conectado e pronto para ouvir mensagens!');
     });
@@ -152,11 +149,11 @@ if (whatsappEnabled) {
         if (partes.length >= 3 && !isNaN(partes[0].replace(',', '.'))) {
             const valor = parseFloat(partes[0].replace(',', '.'));
             const descricao = partes[1];
-            const categoria = partes[2]; // 💎 CORRIGIDO: de category para categoria
+            const categoria = partes[2]; 
 
             const chatOrigem = msg.from;
             
-            // Trata a string para capturar apenas os números puros do WhatsApp (remove tanto @c.us quanto @lid)
+            // Captura limpa do número do WhatsApp, tratando inclusive contas @lid novas
             const numeroTelefone = msg.from.replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@lid', '').trim();
 
             console.log(`🤖 [WhatsApp Bot] Mensagem recebida! | Número limpo detectado: ${numeroTelefone}`);
@@ -179,12 +176,11 @@ if (whatsappEnabled) {
                 const usuarioEmail = results[0].email;
                 const usuarioNome = results[0].nome ? results[0].nome : "Usuário";
 
-                // 💎 CORRIGIDO: mudado de category para categoria na query SQL abaixo
                 const sqlInserirGasto = "INSERT INTO controle (descricao, valor_gastos, categoria, usuario_id) VALUES (?, ?, ?, ?)";
 
                 db.query(sqlInserirGasto, [descricao, valor, categoria, usuarioIdDinamico], (errInsert) => {
                     if (errInsert) {
-                        console.error("❌ Erro no INSERT do MySQL:", errInsert); // Imprime o erro real no log do Render para segurança
+                        console.error("❌ Erro no INSERT do MySQL:", errInsert);
                         client.sendMessage(chatOrigem, "❌ Desculpe, deu um erro ao tentar salvar o seu gasto.");
                         return;
                     }
