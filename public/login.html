@@ -10,24 +10,26 @@
     <div class="login-card">
         <h2 id="titulo">Entrar</h2>
         <form id="formAuth" novalidate>
-            <div class="form-field">
+            <div class="form-field" id="campoEmail">
                 <input type="email" id="email" placeholder="E-mail" required>
                 <span class="field-error" id="emailError"></span>
             </div>
-            <div class="form-field">
+            <div class="form-field" id="campoSenha">
                 <input type="password" id="senha" placeholder="Senha" required>
                 <span class="field-error" id="senhaError"></span>
             </div>
             <button type="submit" id="btnAcao">ACESSAR</button>
         </form>
+        
         <p class="toggle" onclick="alternarModo()" id="btnToggle">Não tem uma conta? Cadastre-se</p>
+        <p class="toggle" onclick="modoEsqueciSenha()" id="btnEsqueci" style="margin-top: 8px; color: #00d2ff; font-size: 0.9em;">Esqueci minha senha</p>
     </div>
 
     <script>
+        const URL_API = window.location.origin;
 
-        const URL_API = window.location.origin; // Base API usando a origem atual do front-end
-
-        let modoLogin = true;
+        // Estados da tela: 'login', 'cadastro' ou 'recuperar'
+        let estadoTela = 'login'; 
 
         const formAuth = document.getElementById('formAuth');
         const camposAuth = [
@@ -39,7 +41,7 @@
             camposAuth.forEach(campo => {
                 const input = document.getElementById(campo.id);
                 const erro = document.getElementById(`${campo.id}Error`);
-                input.classList.remove('input-error', 'input-valid');
+                if (input) input.classList.remove('input-error', 'input-valid');
                 if (erro) erro.innerText = '';
             });
         }
@@ -47,8 +49,10 @@
         function mostrarErroAuth(id, mensagem) {
             const input = document.getElementById(id);
             const erro = document.getElementById(`${id}Error`);
-            input.classList.add('input-error');
-            input.classList.remove('input-valid');
+            if (input) {
+                input.classList.add('input-error');
+                input.classList.remove('input-valid');
+            }
             if (erro) erro.innerText = mensagem;
         }
 
@@ -56,7 +60,12 @@
             limparErrosAuth();
             let valido = true;
 
-            camposAuth.forEach(campo => {
+            // Se for recuperação, só precisamos validar o e-mail
+            const camposParaValidar = estadoTela === 'recuperar' 
+                ? [camposAuth[0]] 
+                : camposAuth;
+
+            camposParaValidar.forEach(campo => {
                 const input = document.getElementById(campo.id);
                 const valor = input.value.trim();
 
@@ -70,7 +79,7 @@
                     mostrarErroAuth(campo.id, 'Digite um e-mail válido.');
                     valido = false;
                 } else {
-                    input.classList.add('input-valid');
+                    if (input) input.classList.add('input-valid');
                 }
             });
 
@@ -82,42 +91,92 @@
             if (!validarFormularioAuth()) return;
 
             const email = document.getElementById('email').value.trim();
-            const senha = document.getElementById('senha').value;
-            const rota = modoLogin ? '/login' : '/registrar';
+            const senha = document.getElementById('senha') ? document.getElementById('senha').value : '';
+            
+            // Define a rota com base no estado atual da tela
+            let rota = '/login';
+            let dadosCorpo = { email, senha };
+
+            if (estadoTela === 'cadastro') {
+                rota = '/registrar';
+            } else if (estadoTela === 'recuperar') {
+                rota = '/esqueci-senha';
+                dadosCorpo = { email }; // Recuperação não envia senha
+            }
 
             try {
-                const resp = await fetch(rota, {
+                const resp = await fetch(`${URL_API}${rota}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, senha })
+                    body: JSON.stringify(dadosCorpo)
                 });
 
                 const dados = await resp.json();
 
                 if (resp.ok) {
-                    if (modoLogin) {
+                    if (estadoTela === 'login') {
                         localStorage.setItem('token', dados.token);
                         window.location.href = 'index.html';
-                    } else {
+                    } else if (estadoTela === 'cadastro') {
                         alert("Usuário criado! Agora faça o login.");
                         alternarModo();
+                    } else if (estadoTela === 'recuperar') {
+                        alert(dados.mensagem || "Verifique sua caixa de entrada para redefinir a senha.");
+                        voltarParaLogin();
                     }
                 } else {
-                    alert(dados.error || "Erro na autenticação");
+                    alert(dados.error || "Erro na operação");
                 }
             } catch (err) {
                 alert("Erro ao conectar com o servidor.");
             }
         }
 
+        // Altera entre Login e Cadastro
         function alternarModo() {
-            modoLogin = !modoLogin;
-            document.getElementById('titulo').innerText = modoLogin ? 'Entrar' : 'Criar Conta';
-            document.getElementById('btnAcao').innerText = modoLogin ? 'ACESSAR' : 'CADASTRAR';
-            document.getElementById('btnToggle').innerText = modoLogin ? 'Não tem conta? Cadastre-se' : 'Já tenho conta, entrar';
+            limparErrosAuth();
+            if (estadoTela === 'recuperar') {
+                voltarParaLogin();
+                return;
+            }
+
+            if (estadoTela === 'login') {
+                estadoTela = 'cadastro';
+                document.getElementById('titulo').innerText = 'Criar Conta';
+                document.getElementById('btnAcao').innerText = 'CADASTRAR';
+                document.getElementById('btnToggle').innerText = 'Já tenho conta, entrar';
+                document.getElementById('btnEsqueci').style.display = 'none'; // Esconde o esqueci senha no cadastro
+            } else {
+                estadoTela = 'login';
+                document.getElementById('titulo').innerText = 'Entrar';
+                document.getElementById('btnAcao').innerText = 'ACESSAR';
+                document.getElementById('btnToggle').innerText = 'Não tem conta? Cadastre-se';
+                document.getElementById('btnEsqueci').style.display = 'block';
+            }
         }
 
-        document.getElementById('formAuth').addEventListener('submit', autenticar);
+        // Transforma a tela para o modo de Recuperação de Senha
+        function modoEsqueciSenha() {
+            limparErrosAuth();
+            estadoTela = 'recuperar';
+            document.getElementById('titulo').innerText = 'Recuperar Senha';
+            document.getElementById('campoSenha').style.display = 'none'; // Esconde o campo de senha
+            document.getElementById('btnAcao').innerText = 'ENVIAR E-MAIL';
+            document.getElementById('btnToggle').innerText = 'Voltar para o Login';
+            document.getElementById('btnEsqueci').style.display = 'none';
+        }
+
+        // Restaura a tela para o modo de login comum
+        function voltarParaLogin() {
+            estadoTela = 'login';
+            document.getElementById('titulo').innerText = 'Entrar';
+            document.getElementById('campoSenha').style.display = 'block'; // Mostra a senha de volta
+            document.getElementById('btnAcao').innerText = 'ACESSAR';
+            document.getElementById('btnToggle').innerText = 'Não tem conta? Cadastre-se';
+            document.getElementById('btnEsqueci').style.display = 'block';
+        }
+
+        formAuth.addEventListener('submit', autenticar);
     </script>
 </body>
 </html>

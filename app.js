@@ -1,32 +1,57 @@
 require('dotenv').config();
 const express = require('express');
-const mysql = require('mysql2');
+const mysql = require('mysql2'); // O pool usa o mesmo pacote
 const cors = require('cors');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const rateLimit = require('express-rate-limit'); // NOVO
-const nodemailer = require('nodemailer');        // NOVO
+const rateLimit = require('express-rate-limit');
+const nodemailer = require('nodemailer');
+const helmet = require('helmet'); // NOVO: Cabeçalhos de segurança HTTP
 
 const app = express();
+
+// =================================================================
+// 🛡️ CONFIGURAÇÃO DE SEGURANÇA HTTP (HELMET & CORS)
+// =================================================================
+app.use(helmet({
+    contentSecurityPolicy: false, // Desativado temporariamente para não bloquear CDN do Chart.js
+}));
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // =================================================================
-// 🔒 PROTEÇÃO CONTRA ATAQUES (RATE LIMITER)
+// 🔒 CONTROLE DE FLUXO E ATAQUES (RATE LIMITERS DIFERENCIADOS)
 // =================================================================
-const limitadorAutenticacao = rateLimit({
-    windowMs: 15 * 60 * 1000, // Janela de 15 minutos
-    max: 5, // Limita cada IP a 5 requisições por janela
-    message: { error: 'Muitas tentativas feitas. Por favor, tente novamente em 15 minutos.' },
+// 1. Limite Rígido: Para Login, Cadastro e Recuperação de Senha (Evita força bruta)
+const limiteAutenticacao = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 5, 
+    message: { error: 'Muitas tentativas feitas deste computador. Tente novamente em 15 minutos.' },
     standardHeaders: true,
     legacyHeaders: false,
 });
 
-// Apply para rotas sensíveis de login e cadastro
-app.use('/login', limitadorAutenticacao);
-app.use('/registrar', limitadorAutenticacao);
+// 2. Limite Geral: Para rotas de dados, como salvar e listar (Evita ataques DDoS de sobrecarga)
+const limiteGeralDasRotas = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minuto
+    max: 60, // Permite no máximo 60 cliques/requisições por minuto por usuário
+    message: { error: 'Calma lá! Você está gerando requisições rápido demais.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Aplicando os limitadores nos alvos corretos
+app.use('/login', limiteAutenticacao);
+app.use('/registrar', limiteAutenticacao);
+app.use('/esqueci-senha', limiteAutenticacao);
+
+// Rotas de manipulação de dados protegidas pelo limite geral
+app.use('/salvar', limiteGeralDasRotas);
+app.use('/listar', limiteGeralDasRotas);
+app.use('/excluir', limiteGeralDasRotas);
+
 
 // =================================================================
 // 📧 CONFIGURAÇÃO DO DISPARADOR DE E-MAILS (NODEMAILER)
@@ -34,41 +59,45 @@ app.use('/registrar', limitadorAutenticacao);
 const transportadorEmail = nodemailer.createTransport({
     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
     port: process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 587,
-    secure: false, // true para 465, false para outras portas
+    secure: false,
     auth: {
-        user: process.env.EMAIL_USER, // Seu e-mail de envio cadastrado no .env
-        pass: process.env.EMAIL_PASS  // Sua senha de app configurada no .env
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
     }
 });
 
 // =================================================================
-// CONEXÃO INTELIGENTE COM O BANCO DE DADOS
+// 🛠️ POOL DE CONEXÕES INTELIGENTE (Performance Escalável)
 // =================================================================
 const usarNuvem = process.env.DATABASE_URL ? true : false;
-let db;
+let pool;
+
+const configComumPool = {
+    waitForConnections: true,
+    connectionLimit: 10, // Abre até 10 conexões simultâneas sob demanda
+    queueLimit: 0
+};
 
 if (usarNuvem) {
-    db = mysql.createConnection({
+    pool = mysql.createPool({
         uri: process.env.DATABASE_URL.split('?')[0],
-        ssl: { rejectUnauthorized: false }
+        ssl: { rejectUnauthorized: false },
+        ...configComumPool
     });
 } else {
-    db = mysql.createConnection({
+    pool = mysql.createPool({
         host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '32826039Xb$',
+        password: process.env.DB_PASSWORD, 
         database: process.env.DB_DATABASE || 'planilha_db',
-        port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306
+        port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
+        ...configComumPool
     });
 }
 
-db.connect((err) => {
-    if (err) {
-        console.error('❌ Erro ao conectar ao banco de dados:', err.message);
-        return;
-    }
-    console.log(usarNuvem ? '🚀 Conectado ao banco da AIVEN na nuvem!' : '💻 Conectado ao banco LOCAL!');
-});
+const db = pool; 
+
+console.log(usarNuvem ? '🚀 Pool de conexões ativado na AIVEN (Nuvem)!' : '💻 Pool de conexões ativado LOCALMENTE!');
 
 // =================================================================
 // CONFIGURAÇÃO DO BOT DO WHATSAPP (Ajuste de Escopo Global)
@@ -165,7 +194,9 @@ const verificarToken = (req, res, next) => {
     });
 };
 
-// NOVO: ROTA PARA SOLICITAR RECUPERAÇÃO DE SENHA
+// =================================================================
+// ROTA PARA SOLICITAR RECUPERAÇÃO DE SENHA
+// =================================================================
 app.post('/esqueci-senha', (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'O e-mail é obrigatório.' });
@@ -174,17 +205,14 @@ app.post('/esqueci-senha', (req, res) => {
     db.query(sql, [email.trim()], async (err, results) => {
         if (err) return res.status(500).json({ error: 'Erro interno no servidor.' });
         
-        // Medida de Segurança (Timing Attack): Sempre responda com sucesso para o front-end
-        // para evitar que hackers fiquem testando quais e-mails existem ou não no seu banco.
         if (results.length === 0) {
             return res.json({ mensagem: "Um link de recuperação será enviado ao seu email! Não se esqueça de verificar a caixa de spam caso não encontre o email." });
         }
 
         const usuario = results[0];
-        // Gera um token temporário que expira em 1 hora para redefinir a senha
+        
         const tokenRecuperacao = jwt.sign({ id: usuario.id }, JWT_SECRET, { expiresIn: '1h' });
 
-        // Link apontando para a nova tela de redefinição que você criará no front
         const linkRecuperacao = `${req.protocol}://${req.get('host')}/redefinir-senha.html?token=${tokenRecuperacao}`;
 
         const opcoesEmail = {
