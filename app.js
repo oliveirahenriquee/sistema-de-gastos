@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const nodemailer = require('nodemailer');
 const helmet = require('helmet');
-const fs = require('fs'); // Importado para gerenciar a limpeza de travas do Chrome
+const fs = require('fs');
 
 const app = express();
 
@@ -98,7 +98,7 @@ const db = pool;
 console.log(usarNuvem ? '🚀 Pool de conexões ativado na AIVEN (Nuvem)!' : '💻 Pool de conexões ativado LOCALMENTE!');
 
 // =================================================================
-// CONFIGURAÇÃO DO BOT DO WHATSAPP (Versão Disco Persistente & Anti-trava)
+// CONFIGURAÇÃO DO BOT DO WHATSAPP (Versão Volume Persistente com Varredura de Trava)
 // =================================================================
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
@@ -152,7 +152,7 @@ if (whatsappEnabled) {
         if (partes.length >= 3 && !isNaN(partes[0].replace(',', '.'))) {
             const valor = parseFloat(partes[0].replace(',', '.'));
             const descricao = partes[1];
-            const categoria = partes[2]; // Corrigido de category para categoria
+            const categoria = partes[2]; 
 
             const chatOrigem = msg.from;
             
@@ -194,16 +194,22 @@ if (whatsappEnabled) {
     });
 
     // =================================================================
-    // 🧹 LIMPEZA AUTOMÁTICA DE TRAVAS DO CHROMIUM (FIX ERR_LOCK CODE: 21)
+    // 🧹 LIMPEZA AUTOMÁTICA DE TRAVAS DO CHROMIUM (VERSÃO DUPLA BLINDADA)
     // =================================================================
-    const pathLock = path.join('/data', '.wwebjs_auth', 'Default', 'SingletonLock');
+    const travaRaiz = path.join('/data', '.wwebjs_auth', 'SingletonLock');
+    const travaDefault = path.join('/data', '.wwebjs_auth', 'Default', 'SingletonLock');
+    
     try {
-        if (fs.existsSync(pathLock)) {
-            fs.unlinkSync(pathLock);
-            console.log('🧹 [Chromium] Arquivo SingletonLock deletado do volume persistente!');
+        if (fs.existsSync(travaRaiz)) {
+            fs.unlinkSync(travaRaiz);
+            console.log('🧹 [Chromium] Trava raiz removida com sucesso!');
+        }
+        if (fs.existsSync(travaDefault)) {
+            fs.unlinkSync(travaDefault);
+            console.log('🧹 [Chromium] Trava Default removida com sucesso!');
         }
     } catch (errLock) {
-        console.log('⚠️ [Chromium] Sem travas para remover ou erro na limpeza:', errLock.message);
+        console.log('⚠️ [Chromium] Erro ou sem travas para remover:', errLock.message);
     }
 
     console.log("🤖 Inicializando o Bot do WhatsApp...");
