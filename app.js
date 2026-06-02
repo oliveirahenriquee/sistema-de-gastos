@@ -96,9 +96,9 @@ const db = pool;
 
 console.log(usarNuvem ? '🚀 Pool de conexões ativado na AIVEN (Nuvem)!' : '💻 Pool de conexões ativado LOCALMENTE!');
 // =================================================================
-// CONFIGURAÇÃO DO BOT DO WHATSAPP (Versão Session Token - Antiloop)
+// CONFIGURAÇÃO DO BOT DO WHATSAPP (Versão Disco Persistente)
 // =================================================================
-const { Client, RemoteAuth } = require('whatsapp-web.js'); // Usaremos a inteligência de sessão
+const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
 const whatsappEnabled = String(process.env.WHATSAPP_ENABLED || 'true').toLowerCase() === 'true';
@@ -106,12 +106,10 @@ const whatsappEnabled = String(process.env.WHATSAPP_ENABLED || 'true').toLowerCa
 let client = null;
 
 if (whatsappEnabled) {
-    // Se você já tiver a chave salva no Render, ele usa ela. Se não, ele pede o QR Code.
-    const sessionData = process.env.WHATSAPP_SESSION ? JSON.parse(process.env.WHATSAPP_SESSION) : null;
-
     client = new Client({
-        // Se tiver o token salvo ele usa, senão inicializa zerado para te dar o QR Code
-        session: sessionData, 
+        authStrategy: new LocalAuth({
+            dataPath: '/data/.wwebjs_auth' // 📁 Salvaremos na pasta /data (que será o nosso disco fixo)
+        }),
         puppeteer: {
             headless: true,
             args: [
@@ -136,13 +134,6 @@ if (whatsappEnabled) {
     client.on('qr', (qr) => {
         console.log('🤖 [WhatsApp Bot] QR Code gerado! Escaneie abaixo com o seu celular:');
         qrcode.generate(qr, { small: true });
-    });
-
-    // 🔑 O PULO DO GATO: Quando você escanear, ele vai cuspir o Token no log. Copie ele!
-    client.on('authenticated', (session) => {
-        console.log('🔑 ====== COPIE O TEXTO ABAIXO (DEPOIS DOS DOIS PONTOS) EN RE COLOQUE NO RENDER ======');
-        console.log(JSON.stringify(session));
-        console.log('================================================================================');
     });
 
     client.on('ready', () => {
