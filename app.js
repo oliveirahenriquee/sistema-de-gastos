@@ -62,8 +62,13 @@ const transportadorEmail = nodemailer.createTransport({
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     }
-});
-
+    const os = require('os');
+    // Prefer explicit env var; otherwise use a per-instance directory to avoid
+    // profile lock conflicts when multiple containers share a volume (e.g., Render).
+    const defaultBase = process.env.WWEBJS_AUTH_BASE || os.tmpdir();
+    const instanceId = `${os.hostname()}_${process.pid}`;
+    const authPath = process.env.WWEBJS_AUTH_PATH || path.join(defaultBase, `.wwebjs_auth_${instanceId}`);
+    try { fs.mkdirSync(authPath, { recursive: true }); } catch (e) { /* ignore */ }
 // =================================================================
 // 🛠️ POOL DE CONEXÕES INTELIGENTE (Performance Escalável)
 // =================================================================
@@ -108,9 +113,12 @@ const whatsappEnabled = String(process.env.WHATSAPP_ENABLED || 'true').toLowerCa
 let client = null;
 
 if (whatsappEnabled) {
+    const authPath = process.env.WWEBJS_AUTH_PATH || path.join(__dirname, '.wwebjs_auth');
+    try { fs.mkdirSync(authPath, { recursive: true }); } catch (e) { /* ignore */ }
+
     client = new Client({
         authStrategy: new LocalAuth({
-            dataPath: '/data/.wwebjs_auth' // 📁 Salva a sessão no volume fixo do Render
+            dataPath: authPath
         }),
         puppeteer: {
             headless: true,
@@ -126,9 +134,9 @@ if (whatsappEnabled) {
                 '--no-default-browser-check',
                 '--disable-extensions',
                 '--disable-default-apps',
-                '--proxy-server="direct://"',
+                '--proxy-server=direct://',
                 '--proxy-bypass-list=*',
-                '--js-flags="--max-old-space-size=150"' 
+                '--js-flags=--max-old-space-size=150'
             ],
         }
     });
@@ -196,8 +204,9 @@ if (whatsappEnabled) {
     // =================================================================
     // 🧹 LIMPEZA AUTOMÁTICA DE TRAVAS DO CHROMIUM (VERSÃO DUPLA BLINDADA)
     // =================================================================
-    const travaRaiz = path.join('/data', '.wwebjs_auth', 'SingletonLock');
-    const travaDefault = path.join('/data', '.wwebjs_auth', 'Default', 'SingletonLock');
+    const authPath = process.env.WWEBJS_AUTH_PATH || path.join(__dirname, '.wwebjs_auth');
+    const travaRaiz = path.join(authPath, 'SingletonLock');
+    const travaDefault = path.join(authPath, 'Default', 'SingletonLock');
     
     try {
         if (fs.existsSync(travaRaiz)) {
