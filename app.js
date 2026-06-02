@@ -15,39 +15,35 @@ const app = express();
 // 🛡️ CONFIGURAÇÃO DE SEGURANÇA HTTP (HELMET & CORS)
 // =================================================================
 app.use(helmet({
-    contentSecurityPolicy: false, // Mantido em false para não bloquear os gráficos do Chart.js
+    contentSecurityPolicy: false, 
 }));
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // =================================================================
-// 🔒 CONTROLE DE FLUXO E ATAQUES (RATE LIMITERS DIFERENCIADOS)
+// RATE LIMITE
 // =================================================================
-// 1. Limite Rígido: Para Login, Cadastro e Recuperação de Senha (Evita força bruta)
 const limiteAutenticacao = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos
+    windowMs: 15 * 60 * 1000, 
     max: 5, 
     message: { error: 'Muitas tentativas feitas deste computador. Tente novamente em 15 minutos.' },
     standardHeaders: true,
     legacyHeaders: false,
 });
 
-// 2. Limite Geral: Para rotas de dados, como salvar e listar (Evita sobrecarga e DDoS)
 const limiteGeralDasRotas = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minuto
-    max: 60, // Máximo de 60 requisições por minuto por IP
+    windowMs: 1 * 60 * 1000, 
+    max: 60, 
     message: { error: 'Calma lá! Você está gerando requisições rápido demais.' },
     standardHeaders: true,
     legacyHeaders: false,
 });
 
-// Aplicando os limitadores nos alvos corretos
 app.use('/login', limiteAutenticacao);
 app.use('/registrar', limiteAutenticacao);
 app.use('/esqueci-senha', limiteAutenticacao);
 
-// Rotas de manipulação de dados protegidas pelo limite geral
 app.use('/salvar', limiteGeralDasRotas);
 app.use('/listar', limiteGeralDasRotas);
 app.use('/excluir', limiteGeralDasRotas);
@@ -73,7 +69,7 @@ let pool;
 
 const configComumPool = {
     waitForConnections: true,
-    connectionLimit: 10, // Abre até 10 conexões simultâneas sob demanda
+    connectionLimit: 10, 
     queueLimit: 0
 };
 
@@ -94,7 +90,6 @@ if (usarNuvem) {
     });
 }
 
-// Atalho do Pool para manter a compatibilidade com as queries abaixo
 const db = pool; 
 
 console.log(usarNuvem ? '🚀 Pool de conexões ativado na AIVEN (Nuvem)!' : '💻 Pool de conexões ativado LOCALMENTE!');
@@ -112,11 +107,11 @@ let client = null;
 if (whatsappEnabled) {
     client = new Client({
         authStrategy: new LocalAuth({
-            dataPath: './.wwebjs_auth' // 💾 Garante a persistência do login na nuvem
+            dataPath: './.wwebjs_auth' 
         }),
         puppeteer: {
             headless: true,
-            // 🚨 FLAGS DE ECONOMIA DE MEMÓRIA PARA EVITAR O CRASH LOOP NO RENDER
+            
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -131,7 +126,7 @@ if (whatsappEnabled) {
                 '--disable-default-apps',
                 '--proxy-server="direct://"',
                 '--proxy-bypass-list=*',
-                '--js-flags="--max-old-space-size=150"' // Controla o limite de memória do motor V8
+                '--js-flags="--max-old-space-size=150"' 
             ],
         }
     });
@@ -149,7 +144,6 @@ if (whatsappEnabled) {
         const texto = msg.body.trim();
         const partes = texto.split(' ');
 
-        // Verifica se a mensagem segue o padrão: "VALOR DESCRIÇÃO CATEGORIA"
         if (partes.length >= 3 && !isNaN(partes[0].replace(',', '.'))) {
             const valor = parseFloat(partes[0].replace(',', '.'));
             const descricao = partes[1];
@@ -215,7 +209,6 @@ const verificarToken = (req, res, next) => {
     });
 };
 
-// ROTA PARA SOLICITAR RECUPERAÇÃO DE SENHA
 app.post('/esqueci-senha', (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'O e-mail é obrigatório.' });
@@ -252,7 +245,6 @@ app.post('/esqueci-senha', (req, res) => {
     });
 });
 
-// ROTA DE REGISTRO DE USUÁRIO
 app.post('/registrar', async (req, res) => {
     const { email, senha } = req.body;
     if (!email || !senha) return res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
@@ -269,7 +261,6 @@ app.post('/registrar', async (req, res) => {
     });
 });
 
-// ROTA DE LOGIN
 app.post('/login', (req, res) => {
     const { email, senha } = req.body;
     if (!email || !senha) return res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
@@ -287,7 +278,6 @@ app.post('/login', (req, res) => {
     });
 });
 
-// ROTA PARA SALVAR GASTO (WEB)
 app.post('/salvar', verificarToken, (req, res) => {
     const { descricao, valor_gastos, categoria } = req.body;
     if (!descricao || !categoria || !valor_gastos || isNaN(parseFloat(valor_gastos))) {
@@ -301,7 +291,6 @@ app.post('/salvar', verificarToken, (req, res) => {
     });
 });
 
-// ROTA PARA LISTAR GASTOS (WEB)
 app.get('/listar', verificarToken, (req, res) => {
     const sql = "SELECT * FROM controle WHERE usuario_id = ? ORDER BY data_registro DESC";
     db.query(sql, [req.usuarioId], (err, results) => {
@@ -310,7 +299,6 @@ app.get('/listar', verificarToken, (req, res) => {
     });
 });
 
-// ROTA PARA EXCLUIR GASTO (WEB)
 app.delete('/excluir/:id', verificarToken, (req, res) => {
     const gastoId = req.params.id;
     const usuarioId = req.usuarioId;
@@ -323,7 +311,6 @@ app.delete('/excluir/:id', verificarToken, (req, res) => {
     });
 });
 
-// Tratamento global de erros assíncronos
 process.on('unhandledRejection', (reason) => {
     console.error('⚠️ Rejeição não tratada detectada:', reason);
 });
