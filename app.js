@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const nodemailer = require('nodemailer');
 const helmet = require('helmet');
+const fs = require('fs'); // Importado para gerenciar a limpeza de travas do Chrome
 
 const app = express();
 
@@ -95,8 +96,9 @@ if (usarNuvem) {
 const db = pool; 
 
 console.log(usarNuvem ? '🚀 Pool de conexões ativado na AIVEN (Nuvem)!' : '💻 Pool de conexões ativado LOCALMENTE!');
+
 // =================================================================
-// CONFIGURAÇÃO DO BOT DO WHATSAPP (Versão Disco Persistente)
+// CONFIGURAÇÃO DO BOT DO WHATSAPP (Versão Disco Persistente & Anti-trava)
 // =================================================================
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
@@ -108,7 +110,7 @@ let client = null;
 if (whatsappEnabled) {
     client = new Client({
         authStrategy: new LocalAuth({
-            dataPath: '/data/.wwebjs_auth' // 📁 Salvaremos na pasta /data (que será o nosso disco fixo)
+            dataPath: '/data/.wwebjs_auth' // 📁 Salva a sessão no volume fixo do Render
         }),
         puppeteer: {
             headless: true,
@@ -140,6 +142,7 @@ if (whatsappEnabled) {
         console.log('🤖 🚀 [WhatsApp Bot] Conectado e pronto para ouvir mensagens!');
     });
 
+    // Escuta estritamente mensagens recebidas para evitar loops
     client.on('message', async (msg) => {
         if (msg.fromMe) return;
 
@@ -149,9 +152,11 @@ if (whatsappEnabled) {
         if (partes.length >= 3 && !isNaN(partes[0].replace(',', '.'))) {
             const valor = parseFloat(partes[0].replace(',', '.'));
             const descricao = partes[1];
-            const categoria = partes[2]; 
+            const categoria = partes[2]; // Corrigido de category para categoria
 
             const chatOrigem = msg.from;
+            
+            // Trata a string removendo os sufixos clássicos e o novo formato @lid
             const numeroTelefone = msg.from.replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@lid', '').trim();
 
             console.log(`🤖 [WhatsApp Bot] Mensagem recebida! | Número limpo detectado: ${numeroTelefone}`);
@@ -187,6 +192,19 @@ if (whatsappEnabled) {
             });
         }
     });
+
+    // =================================================================
+    // 🧹 LIMPEZA AUTOMÁTICA DE TRAVAS DO CHROMIUM (FIX ERR_LOCK CODE: 21)
+    // =================================================================
+    const pathLock = path.join('/data', '.wwebjs_auth', 'Default', 'SingletonLock');
+    try {
+        if (fs.existsSync(pathLock)) {
+            fs.unlinkSync(pathLock);
+            console.log('🧹 [Chromium] Arquivo SingletonLock deletado do volume persistente!');
+        }
+    } catch (errLock) {
+        console.log('⚠️ [Chromium] Sem travas para remover ou erro na limpeza:', errLock.message);
+    }
 
     console.log("🤖 Inicializando o Bot do WhatsApp...");
     client.initialize();
