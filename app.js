@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const nodemailer = require('nodemailer');
 const helmet = require('helmet');
 const fs = require('fs');
+const os = require('os');
 
 const app = express();
 
@@ -62,13 +63,7 @@ const transportadorEmail = nodemailer.createTransport({
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     }
-    const os = require('os');
-    // Prefer explicit env var; otherwise use a per-instance directory to avoid
-    // profile lock conflicts when multiple containers share a volume (e.g., Render).
-    const defaultBase = process.env.WWEBJS_AUTH_BASE || os.tmpdir();
-    const instanceId = `${os.hostname()}_${process.pid}`;
-    const authPath = process.env.WWEBJS_AUTH_PATH || path.join(defaultBase, `.wwebjs_auth_${instanceId}`);
-    try { fs.mkdirSync(authPath, { recursive: true }); } catch (e) { /* ignore */ }
+});
 // =================================================================
 // 🛠️ POOL DE CONEXÕES INTELIGENTE (Performance Escalável)
 // =================================================================
@@ -113,7 +108,11 @@ const whatsappEnabled = String(process.env.WHATSAPP_ENABLED || 'true').toLowerCa
 let client = null;
 
 if (whatsappEnabled) {
-    const authPath = process.env.WWEBJS_AUTH_PATH || path.join(__dirname, '.wwebjs_auth');
+    // Prefer explicit env var; otherwise use a per-instance directory to avoid
+    // profile lock conflicts when multiple containers share a volume (e.g., Render).
+    const defaultBase = process.env.WWEBJS_AUTH_BASE || os.tmpdir();
+    const instanceId = `${os.hostname()}_${process.pid}`;
+    const authPath = process.env.WWEBJS_AUTH_PATH || path.join(defaultBase, `.wwebjs_auth_${instanceId}`);
     try { fs.mkdirSync(authPath, { recursive: true }); } catch (e) { /* ignore */ }
 
     client = new Client({
@@ -202,23 +201,33 @@ if (whatsappEnabled) {
     });
 
     // =================================================================
-    // 🧹 LIMPEZA AUTOMÁTICA DE TRAVAS DO CHROMIUM (VERSÃO DUPLA BLINDADA)
+    // 🧹 LIMPEZA AUTOMÁTICA DE TRAVAS DO CHROMIUM (VERSÃO ROBUSTA)
     // =================================================================
-    const authPath = process.env.WWEBJS_AUTH_PATH || path.join(__dirname, '.wwebjs_auth');
-    const travaRaiz = path.join(authPath, 'SingletonLock');
-    const travaDefault = path.join(authPath, 'Default', 'SingletonLock');
-    
+    const possibleLocks = [
+        path.join(authPath, 'SingletonLock'),
+        path.join(authPath, 'Default', 'SingletonLock'),
+        path.join(authPath, 'SingletonSocket'),
+        path.join(authPath, 'Default', 'SingletonSocket')
+    ];
+
     try {
-        if (fs.existsSync(travaRaiz)) {
-            fs.unlinkSync(travaRaiz);
-            console.log('🧹 [Chromium] Trava raiz removida com sucesso!');
-        }
-        if (fs.existsSync(travaDefault)) {
-            fs.unlinkSync(travaDefault);
-            console.log('🧹 [Chromium] Trava Default removida com sucesso!');
-        }
+        possibleLocks.forEach((lockPath) => {
+            try {
+                if (fs.existsSync(lockPath)) {
+                    fs.unlinkSync(lockPath);
+                    console.log(`🧹 [Chromium] Trava removida: ${lockPath}`);
+                }
+            } catch (e) {
+                // ignore per-file errors
+            }
+        });
     } catch (errLock) {
-        console.log('⚠️ [Chromium] Erro ou sem travas para remover:', errLock.message);
+        console.log('⚠️ [Chromium] Erro ao tentar limpar travas:', errLock.message);
+    }
+
+    if ((process.env.WWEBJS_AUTH_PATH && process.env.WWEBJS_AUTH_PATH.indexOf('/data') === 0) ||
+        (defaultBase && defaultBase.indexOf('/data') === 0)) {
+        console.log('⚠️ [Chromium] Usando authPath por instância para evitar conflitos de perfil em volumes compartilhados.');
     }
 
     console.log("🤖 Inicializando o Bot do WhatsApp...");
