@@ -25,10 +25,16 @@
         <p class="toggle" onclick="modoEsqueciSenha()" id="btnEsqueci" style="margin-top: 8px; color: #00d2ff; font-size: 0.9em;">Esqueci minha senha</p>
     </div>
 
+    <div class="campo-senha-container" style="position: relative; display: flex; align-items: center;">
+    <input type="password" id="senha" placeholder="Digite sua senha" style="padding-right: 40px; width: 100%;">
+    <button type="button" id="btn-mostrar-senha" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 18px;">
+        👁️
+    </button>
+    </div>
+
     <script>
         const URL_API = window.location.origin;
 
-        // Estados da tela: 'login', 'cadastro' ou 'recuperar'
         let estadoTela = 'login'; 
 
         const formAuth = document.getElementById('formAuth');
@@ -60,7 +66,6 @@
             limparErrosAuth();
             let valido = true;
 
-            // Se for recuperação, só precisamos validar o e-mail
             const camposParaValidar = estadoTela === 'recuperar' 
                 ? [camposAuth[0]] 
                 : camposAuth;
@@ -93,7 +98,6 @@
             const email = document.getElementById('email').value.trim();
             const senha = document.getElementById('senha') ? document.getElementById('senha').value : '';
             
-            // Define a rota com base no estado atual da tela
             let rota = '/login';
             let dadosCorpo = { email, senha };
 
@@ -101,7 +105,7 @@
                 rota = '/registrar';
             } else if (estadoTela === 'recuperar') {
                 rota = '/esqueci-senha';
-                dadosCorpo = { email }; // Recuperação não envia senha
+                dadosCorpo = { email };
             }
 
             try {
@@ -132,7 +136,6 @@
             }
         }
 
-        // Altera entre Login e Cadastro
         function alternarModo() {
             limparErrosAuth();
             if (estadoTela === 'recuperar') {
@@ -145,7 +148,7 @@
                 document.getElementById('titulo').innerText = 'Criar Conta';
                 document.getElementById('btnAcao').innerText = 'CADASTRAR';
                 document.getElementById('btnToggle').innerText = 'Já tenho conta, entrar';
-                document.getElementById('btnEsqueci').style.display = 'none'; // Esconde o esqueci senha no cadastro
+                document.getElementById('btnEsqueci').style.display = 'none'; 
             } else {
                 estadoTela = 'login';
                 document.getElementById('titulo').innerText = 'Entrar';
@@ -155,28 +158,43 @@
             }
         }
 
-        // Transforma a tela para o modo de Recuperação de Senha
         function modoEsqueciSenha() {
             limparErrosAuth();
             estadoTela = 'recuperar';
             document.getElementById('titulo').innerText = 'Recuperar Senha';
-            document.getElementById('campoSenha').style.display = 'none'; // Esconde o campo de senha
+            document.getElementById('campoSenha').style.display = 'none'; 
             document.getElementById('btnAcao').innerText = 'ENVIAR E-MAIL';
             document.getElementById('btnToggle').innerText = 'Voltar para o Login';
             document.getElementById('btnEsqueci').style.display = 'none';
         }
 
-        // Restaura a tela para o modo de login comum
         function voltarParaLogin() {
             estadoTela = 'login';
             document.getElementById('titulo').innerText = 'Entrar';
-            document.getElementById('campoSenha').style.display = 'block'; // Mostra a senha de volta
+            document.getElementById('campoSenha').style.display = 'block'; 
             document.getElementById('btnAcao').innerText = 'ACESSAR';
             document.getElementById('btnToggle').innerText = 'Não tem conta? Cadastre-se';
             document.getElementById('btnEsqueci').style.display = 'block';
         }
 
         formAuth.addEventListener('submit', autenticar);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const inputSenha = document.getElementById('senha');
+            const btnMostrarSenha = document.getElementById('btn-mostrar-senha');
+
+            if (btnMostrarSenha && inputSenha) {
+                btnMostrarSenha.addEventListener('click', () => {
+                    if (inputSenha.type === 'password') {
+                        inputSenha.type = 'text';
+                        btnMostrarSenha.textContent = '';
+                    } else {
+                        inputSenha.type = 'password';
+                        btnMostrarSenha.textContent = '👁️'; 
+                    }
+                });
+            }
+        });
     </script>
 </body>
 </html>

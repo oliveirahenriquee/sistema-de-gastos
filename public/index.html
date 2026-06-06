@@ -54,6 +54,13 @@
        <canvas id="graficoGastos"></canvas>
     </div>
 
+    <div class="campo-senha-container" style="position: relative; display: flex; align-items: center;">
+    <input type="password" id="senha" placeholder="Digite sua senha" style="padding-right: 40px; width: 100%;">
+    <button type="button" id="btn-mostrar-senha" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 18px;">
+        👁️
+    </button>
+    </div>
+
     <h2>Histórico</h2>
     <table>
         <thead>
@@ -69,7 +76,7 @@
     </table>
 
     <script>
-        // 1. Verificação de Segurança e Token
+
         const token = localStorage.getItem('token');
         if (!token) {
             window.location.href = 'login.html';
@@ -77,7 +84,6 @@
 
         const URL_API = window.location.origin;
 
-        // Função para deslogar
         function fazerLogout() {
             localStorage.removeItem('token');
             window.location.href = 'login.html';
@@ -204,7 +210,7 @@
 
                     if (bateCategoria && bateMes) {
                         somaContador += parseFloat(item.valor_gastos || 0);
-                        dadosFiltradosParaOGrafico.push(item); // Guarda para o gráfico
+                        dadosFiltradosParaOGrafico.push(item); 
 
                         corpoTabela.innerHTML += `
                             <tr>
@@ -222,7 +228,6 @@
 
                 displayTotal.innerText = `R$ ${somaContador.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
                 
-                // Atualiza o Filtro de Categorias na tela
                 const valorAntes = selCategoria.value;
                 selCategoria.innerHTML = "";
                 categoriasUnicas.forEach(cat => {
@@ -233,7 +238,6 @@
                     selCategoria.appendChild(opt);
                 });
 
-                // ATUALIZA O GRÁFICO COM OS DADOS FILTRADOS
                 renderizarGrafico(dadosFiltradosParaOGrafico);
 
             } catch (err) {
@@ -241,7 +245,6 @@
             }
         }
 
-        // 4. Função para Excluir Gasto (Agora visível e fora das outras funções)
         async function excluirGasto(id) {
             if (!confirm("Tem certeza que deseja excluir este gasto?")) return;
             
@@ -265,11 +268,9 @@
             }
         }
 
-        // 5. Função que desenha o Gráfico de Pizza na Tela
         function renderizarGrafico(listaDeGastos) {
             const categorias = {};
             
-            // Filtra e agrupa apenas gastos válidos
             listaDeGastos.forEach(gasto => {
                 if (gasto.categoria && gasto.valor_gastos) {
                     const catNome = gasto.categoria.trim();
@@ -283,7 +284,6 @@
             const labels = Object.keys(categorias);
             const valores = Object.values(categorias);
 
-            // Se não houver nenhum gasto no filtro, não desenha o gráfico para não dar erro
             if (labels.length === 0) {
                 if (window.graficoFinanceiro) {
                     window.graficoFinanceiro.destroy();
@@ -294,7 +294,6 @@
 
             const ctx = document.getElementById('graficoGastos').getContext('2d');
             
-            // CORRIGIDO: Variável exclusiva para evitar conflito com "unidades"
             if (window.graficoFinanceiro) {
                 window.graficoFinanceiro.destroy();
             }
@@ -364,7 +363,6 @@
             });
         }
 
-        // Chamar ao iniciar a página
         carregarDados();
     </script>
 </body>
