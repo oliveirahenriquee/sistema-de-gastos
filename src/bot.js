@@ -188,12 +188,23 @@ const inicializarBot = () => {
 
     const travaRaiz = path.join(authPath, 'SingletonLock');
     const travaDefault = path.join(authPath, 'Default', 'SingletonLock');
-    try {
-        if (fs.existsSync(travaRaiz)) fs.unlinkSync(travaRaiz);
-        if (fs.existsSync(travaDefault)) fs.unlinkSync(travaDefault);
-    } catch (e) { /* ignore */ }
+    const socketRaiz = path.join(authPath, 'SingletonSocket');
+    const socketDefault = path.join(authPath, 'Default', 'SingletonSocket');
+    
+    const arquivosParaRemover = [travaRaiz, travaDefault, socketRaiz, socketDefault];
 
-    console.log("Inicializando.");
+    arquivosParaRemover.forEach((caminhoArquivo) => {
+        try {
+            if (fs.existsSync(caminhoArquivo)) {
+                fs.unlinkSync(caminhoArquivo);
+                console.log(`Removido com sucesso: ${caminhoArquivo}`);
+            }
+        } catch (e) {
+            console.log(`Não foi possível remover ${caminhoArquivo}:`, e.message);
+        }
+    });
+
+    console.log("Inicializando...");
     client.initialize();
 };
 
