@@ -1,76 +1,145 @@
 body { 
     font-family: 'Segoe UI', sans-serif; 
-    background: #000; 
-    color: white; 
+    background: linear-gradient(135deg, #050816 0%, #10182d 100%);
+    color: #f5f7fb; 
     display: flex; 
     justify-content: center; 
     align-items: center; 
-    height: 100vh; 
+    min-height: 100vh; 
     margin: 0; 
+    padding: 24px;
+    box-sizing: border-box;
 }
 
 .login-card { 
-    background: #1a1a1a;
-    padding: 40px; 
-    border-radius: 15px; 
-    border-top: 5px solid #2ecc71;
-    width: 350px; 
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+    background: rgba(15, 23, 42, 0.92);
+    padding: 40px 36px;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(12px);
 }
 
 h2 { 
     text-align: center; 
-    color: #2ecc71; 
-    margin-bottom: 20px; 
+    color: #7dd3fc;
+    margin: 0 0 24px;
+    font-size: 1.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
 }
 
 input { 
     width: 100%; 
-    padding: 12px; 
-    margin: 10px 0; 
-    border-radius: 8px; 
-    border: 1px solid #333; 
-    background: #080808; 
-    color: white; 
-    box-sizing: border-box; 
+    padding: 14px 16px;
+    margin: 10px 0 0;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: #f8fafc;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+input:focus {
+    border-color: #7dd3fc;
+    box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.15);
+    background: rgba(255, 255, 255, 0.07);
 }
 
 .form-field {
     position: relative;
+    margin-bottom: 8px;
+}
+
+#btn-mostrar-senha {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(125, 211, 252, 0.12);
+    border: 1px solid rgba(125, 211, 252, 0.22);
+    color: #bae6fd;
+    cursor: pointer;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    margin: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+#btn-mostrar-senha svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+#btn-mostrar-senha:hover {
+    background: rgba(125, 211, 252, 0.2);
+    color: white;
+    transform: translateY(-50%) scale(1.04);
+}
+
+#campoSenha input {
+    padding-right: 46px;
 }
 
 .field-error {
     display: block;
     min-height: 18px;
     margin-top: 6px;
-    color: #ff6b6b;
+    color: #fda4af;
     font-size: 13px;
 }
 
 input.input-error {
-    border-color: #ff6b6b;
-    box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.12);
+    border-color: #fb7185;
+    box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.15);
 }
 
 input.input-valid {
-    border-color: #2ecc71;
+    border-color: #34d399;
+    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.12);
 }
 
 button {
     width: 100%; 
-    padding: 15px; 
-    background: #2ecc71; 
-    border: none; color: black; 
-    font-weight: bold; 
+    padding: 14px 16px; 
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    border: none; color: #05110d; 
+    font-weight: 700; 
     cursor: pointer; 
-    border-radius: 8px; 
-    margin-top: 10px; 
+    border-radius: 14px; 
+    margin-top: 14px;
+    box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(16, 185, 129, 0.28);
 }
 
 .toggle { 
     text-align: center; 
-    margin-top: 20px; 
+    margin-top: 18px; 
     font-size: 14px; 
-    color: #3498db; 
-    cursor: pointer; 
+    color: #7dd3fc; 
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.toggle:hover {
+    color: #dbeafe;
 }

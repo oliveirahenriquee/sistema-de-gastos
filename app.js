@@ -22,7 +22,7 @@ app.use('/', rotasSistema);
 inicializarBot();
 
 process.on('unhandledRejection', (reason) => {
-    console.error('⚠️ Rejeição não tratada detectada:', reason);
+    console.error('Rejeição não tratada detectada:', reason);
 });
 
 const PORT = process.env.PORT || 3000;

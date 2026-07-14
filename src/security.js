@@ -14,7 +14,7 @@ export const limiteAutenticacao = rateLimit({
 export const limiteGeralDasRotas = rateLimit({
     windowMs: 1 * 60 * 1000,
     max: 60,
-    message: { error: 'Calma lá! Você está gerando requisições rápido demais.' },
+    message: { error: 'Aguarde um pouco. Muitas requisições foram feitas.' },
     standardHeaders: true,
     legacyHeaders: false,
 });

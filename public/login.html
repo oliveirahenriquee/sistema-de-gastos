@@ -16,6 +16,12 @@
             </div>
             <div class="form-field" id="campoSenha">
                 <input type="password" id="senha" placeholder="Senha" required>
+                <button type="button" id="btn-mostrar-senha" aria-label="Mostrar senha">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                        <circle cx="12" cy="12" r="3" />
+                    </svg>
+                </button>
                 <span class="field-error" id="senhaError"></span>
             </div>
             <button type="submit" id="btnAcao">ACESSAR</button>
@@ -23,13 +29,6 @@
         
         <p class="toggle" onclick="alternarModo()" id="btnToggle">Não tem uma conta? Cadastre-se</p>
         <p class="toggle" onclick="modoEsqueciSenha()" id="btnEsqueci" style="margin-top: 8px; color: #00d2ff; font-size: 0.9em;">Esqueci minha senha</p>
-    </div>
-
-    <div class="campo-senha-container" style="position: relative; display: flex; align-items: center;">
-    <input type="password" id="senha" placeholder="Digite sua senha" style="padding-right: 40px; width: 100%;">
-    <button type="button" id="btn-mostrar-senha" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 18px;">
-        👁️
-    </button>
     </div>
 
     <script>
@@ -183,16 +182,35 @@
             const inputSenha = document.getElementById('senha');
             const btnMostrarSenha = document.getElementById('btn-mostrar-senha');
 
+            function atualizarIconeSenha() {
+                const mostrando = inputSenha.type === 'text';
+                btnMostrarSenha.setAttribute('aria-label', mostrando ? 'Ocultar senha' : 'Mostrar senha');
+                btnMostrarSenha.classList.toggle('is-visible', mostrando);
+
+                btnMostrarSenha.innerHTML = mostrando
+                    ? `
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 3l18 18" />
+                            <path d="M10.6 6.3A10.3 10.3 0 0 1 12 6c6.5 0 10 6 10 6a18.8 18.8 0 0 1-4.2 4.8" />
+                            <path d="M6.7 8.1A17.6 17.6 0 0 0 2 12s3.5 7 10 7a10.9 10.9 0 0 0 3.4-.6" />
+                            <path d="M9.4 10.6a3 3 0 0 1 4.2-4.2" />
+                        </svg>
+                    `
+                    : `
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                    `;
+            }
+
             if (btnMostrarSenha && inputSenha) {
                 btnMostrarSenha.addEventListener('click', () => {
-                    if (inputSenha.type === 'password') {
-                        inputSenha.type = 'text';
-                        btnMostrarSenha.textContent = '';
-                    } else {
-                        inputSenha.type = 'password';
-                        btnMostrarSenha.textContent = '👁️'; 
-                    }
+                    inputSenha.type = inputSenha.type === 'password' ? 'text' : 'password';
+                    atualizarIconeSenha();
                 });
+
+                atualizarIconeSenha();
             }
         });
     </script>
